@@ -1,5 +1,7 @@
 # ASTRA 2.0
 
+![Android CI](https://github.com/josebtan/ASTRA-2.0/actions/workflows/android-build.yml/badge.svg)
+
 App de cámara para Android construida de forma nativa en Kotlin con [CameraX](https://developer.android.com/training/camerax).
 
 Este README se irá actualizando a medida que avancemos con el desarrollo.
@@ -55,6 +57,16 @@ ASTRA-2.0/
 - SDK de Android 34 (compileSdk / targetSdk).
 - minSdk 24 (Android 7.0+).
 - Kotlin 1.9.24 / AGP 8.5.2.
+
+## 🤖 Integración continua (CI)
+
+Cada push o pull request a `main` dispara un workflow de **GitHub Actions** (`.github/workflows/android-build.yml`) que:
+
+1. Configura JDK 17 y el Android SDK.
+2. Compila la app en modo `debug` (`assembleDebug`).
+3. Publica el `.apk` resultante como artefacto descargable desde la pestaña **Actions** del repositorio.
+
+No se usa `gradlew` porque el wrapper binario no está versionado en el repo; en su lugar, el workflow instala Gradle 8.7 directamente en el runner mediante `gradle/actions/setup-gradle`.
 
 ## ▶️ Cómo ejecutar
 
