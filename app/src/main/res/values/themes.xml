@@ -1,0 +1,16 @@
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <style name="Theme.Astra" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+        <item name="colorPrimary">@color/astra_accent</item>
+        <item name="colorPrimaryDark">@color/astra_black</item>
+        <item name="colorAccent">@color/astra_accent</item>
+        <item name="android:windowBackground">@color/astra_dark</item>
+        <item name="android:statusBarColor" tools:targetApi="l">@color/astra_black</item>
+        <item name="android:navigationBarColor" tools:targetApi="l">@color/astra_black</item>
+    </style>
+
+    <style name="Theme.Astra.NoActionBar">
+        <item name="windowActionBar">false</item>
+        <item name="windowNoTitle">true</item>
+        <item name="android:windowFullscreen">false</item>
+    </style>
+</resources>

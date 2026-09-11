@@ -1,0 +1,15 @@
+<resources>
+    <string name="app_name">ASTRA</string>
+    <string name="camera_permission_needed">Se necesita permiso de cámara para continuar</string>
+    <string name="photo_saved">Foto guardada</string>
+    <string name="photo_error">Error al guardar la foto</string>
+    <string name="gallery_empty">Aún no hay fotos.\n¡Toma la primera!</string>
+    <string name="timer_off">OFF</string>
+    <string name="content_description_capture">Tomar foto</string>
+    <string name="content_description_switch_camera">Cambiar cámara</string>
+    <string name="content_description_flash">Alternar flash</string>
+    <string name="content_description_timer">Alternar temporizador</string>
+    <string name="content_description_gallery">Abrir galería</string>
+    <string name="content_description_close">Cerrar</string>
+    <string name="content_description_delete">Eliminar foto</string>
+</resources>
