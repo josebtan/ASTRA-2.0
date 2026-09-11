@@ -8,7 +8,41 @@ on:
   workflow_dispatch:
 
 jobs:
-  build:
+  test:
+    name: Tests unitarios
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout del repositorio
+        uses: actions/checkout@v4
+
+      - name: Configurar JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Configurar Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Configurar Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.7'
+
+      - name: Ejecutar tests unitarios
+        run: gradle testDebugUnitTest --stacktrace
+
+      - name: Subir reporte de tests
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-report
+          path: app/build/reports/tests/testDebugUnitTest/
+
+  build-debug:
+    name: Compilar APK debug
+    needs: test
     runs-on: ubuntu-latest
 
     steps:
@@ -32,8 +66,55 @@ jobs:
       - name: Compilar APK debug
         run: gradle assembleDebug --stacktrace
 
-      - name: Subir APK como artefacto
+      - name: Subir APK debug como artefacto
         uses: actions/upload-artifact@v4
         with:
           name: astra-debug-apk
           path: app/build/outputs/apk/debug/*.apk
+
+  build-release:
+    name: Compilar APK release firmado
+    needs: test
+    runs-on: ubuntu-latest
+    # Solo se firma y publica el release al hacer push a main (no en pull requests externos,
+    # para evitar exponer los secretos de firma).
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Checkout del repositorio
+        uses: actions/checkout@v4
+
+      - name: Configurar JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Configurar Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Configurar Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.7'
+
+      - name: Decodificar keystore de firma
+        run: echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > "$RUNNER_TEMP/astra-release.jks"
+
+      - name: Compilar APK release firmado
+        env:
+          KEYSTORE_PATH: ${{ runner.temp }}/astra-release.jks
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: gradle assembleRelease --stacktrace
+
+      - name: Eliminar keystore temporal
+        if: always()
+        run: rm -f "$RUNNER_TEMP/astra-release.jks"
+
+      - name: Subir APK release como artefacto
+        uses: actions/upload-artifact@v4
+        with:
+          name: astra-release-apk
+          path: app/build/outputs/apk/release/*.apk

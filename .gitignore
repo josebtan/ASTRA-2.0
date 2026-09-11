@@ -12,3 +12,8 @@ local.properties
 *.aab
 app/build/
 app/release/
+
+# Material de firma (nunca debe subirse al repo)
+keystore/
+*.jks
+*.keystore
