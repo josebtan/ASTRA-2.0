@@ -12,4 +12,15 @@
     <string name="content_description_gallery">Abrir galería</string>
     <string name="content_description_close">Cerrar</string>
     <string name="content_description_delete">Eliminar foto</string>
+    <string name="content_description_manual">Controles manuales</string>
+    <string name="manual_controls_title">Controles manuales</string>
+    <string name="manual_iso_label">ISO</string>
+    <string name="manual_exposure_label">Exposición (EV)</string>
+    <string name="manual_contrast_label">Contraste</string>
+    <string name="manual_raw_label">Capturar en RAW (.dng)</string>
+    <string name="manual_note">El contraste se aplica al guardar la foto. RAW guarda un archivo .dng sin comprimir (ocupa más espacio y no muestra miniatura).</string>
+    <string name="manual_reset">Restablecer</string>
+    <string name="manual_not_supported">Este dispositivo no soporta ajuste manual de ISO</string>
+    <string name="raw_not_supported">Este dispositivo no soporta captura RAW, se usará JPEG</string>
+    <string name="auto_label">AUTO</string>
 </resources>

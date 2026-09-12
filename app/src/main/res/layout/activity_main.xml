@@ -138,6 +138,46 @@
 
         </LinearLayout>
 
+        <Space
+            android:layout_width="0dp"
+            android:layout_height="1dp"
+            android:layout_weight="1" />
+
+        <!-- Chip de controles manuales: ISO, exposición, contraste y RAW -->
+        <LinearLayout
+            android:id="@+id/btnManual"
+            android:layout_width="wrap_content"
+            android:layout_height="40dp"
+            android:orientation="horizontal"
+            android:gravity="center"
+            android:background="@drawable/bg_chip_button"
+            android:foreground="?attr/selectableItemBackground"
+            android:paddingHorizontal="14dp"
+            android:layout_marginStart="8dp"
+            android:clickable="true"
+            android:focusable="true"
+            android:contentDescription="@string/content_description_manual">
+
+            <ImageView
+                android:id="@+id/ivManualIcon"
+                android:layout_width="18dp"
+                android:layout_height="18dp"
+                android:src="@drawable/ic_manual"
+                android:contentDescription="@null" />
+
+            <TextView
+                android:id="@+id/tvManualLabel"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="6dp"
+                android:text="PRO"
+                android:textColor="@color/astra_white"
+                android:textSize="12sp"
+                android:textStyle="bold"
+                android:letterSpacing="0.05" />
+
+        </LinearLayout>
+
     </LinearLayout>
 
     <!-- Barra inferior: galería, captura y cambio de cámara -->

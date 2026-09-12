@@ -33,7 +33,10 @@ class GalleryActivity : AppCompatActivity() {
     private fun loadImages() {
         val outputDirectory = MainActivity.getOutputDirectory(this)
         val images = outputDirectory.listFiles()
-            ?.filter { it.extension.equals("jpg", ignoreCase = true) }
+            ?.filter {
+                it.extension.equals("jpg", ignoreCase = true) ||
+                    it.extension.equals("dng", ignoreCase = true)
+            }
             ?.sortedByDescending { it.lastModified() }
             ?: emptyList()
 

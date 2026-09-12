@@ -19,6 +19,12 @@ Primera versión funcional: **app básica de cámara** con las funciones más co
 - 🖼️ **Galería propia**: las fotos se guardan y se listan desde un directorio exclusivo de la app (no se mezclan con la galería general del sistema).
   - Vista en **mosaico** (cuadrícula de 3 columnas, celdas cuadradas y espaciado parejo).
   - Visor a pantalla completa con opción de eliminar cada foto.
+- 🔄 **Interfaz adaptativa a la orientación**: los controles rotan automáticamente para mantenerse legibles sin importar si sostienes el teléfono en vertical u horizontal (hacia cualquiera de los dos lados), y las fotos se guardan con la orientación correcta en todos los casos.
+- 🎛️ **Controles manuales (chip "PRO")**:
+  - **ISO** manual (en dispositivos que lo soportan; si no, se indica y se usa automático).
+  - **Exposición (EV)** — compensación de exposición estándar, funciona en la mayoría de los dispositivos.
+  - **Contraste** — se aplica como post-procesado al guardar la foto (no es un parámetro de hardware estándar entre fabricantes).
+- 📦 **Captura en RAW (.dng)** — activable desde el panel de controles manuales, en dispositivos compatibles. Si el dispositivo no soporta RAW, se avisa y se usa JPEG automáticamente. Los archivos `.dng` no se pueden previsualizar como miniatura (se muestra un ícono), pero sí eliminarse desde la galería o abrirse con una app compatible con RAW.
 
 ### 🎨 Diseño
 

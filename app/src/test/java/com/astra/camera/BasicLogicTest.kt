@@ -51,6 +51,15 @@ class BasicLogicTest {
     }
 
     @Test
+    fun `la formula de contraste no cambia nada cuando el valor es 0`() {
+        fun scaleFor(contrast: Int) = 1f + (contrast / 100f)
+
+        assertEquals(1f, scaleFor(0), 0.0001f)
+        assertTrue(scaleFor(50) > 1f)
+        assertTrue(scaleFor(-50) < 1f)
+    }
+
+    @Test
     fun `el nombre del archivo generado tiene el prefijo ASTRA y extension jpg`() {
         val fileName = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(System.currentTimeMillis())
         val photoFileName = "ASTRA_$fileName.jpg"

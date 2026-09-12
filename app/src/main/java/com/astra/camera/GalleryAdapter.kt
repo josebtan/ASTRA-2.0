@@ -24,7 +24,14 @@ class GalleryAdapter(
 
     override fun onBindViewHolder(holder: ImageViewHolder, position: Int) {
         val file = images[position]
-        holder.binding.imageView.setImageURI(Uri.fromFile(file))
+        if (file.extension.equals("dng", ignoreCase = true)) {
+            // Los archivos RAW no se pueden decodificar como bitmap normal.
+            holder.binding.imageView.setImageResource(R.drawable.ic_manual)
+            holder.binding.imageView.scaleType = android.widget.ImageView.ScaleType.CENTER_INSIDE
+        } else {
+            holder.binding.imageView.scaleType = android.widget.ImageView.ScaleType.CENTER_CROP
+            holder.binding.imageView.setImageURI(Uri.fromFile(file))
+        }
         holder.binding.root.setOnClickListener { onClick(file) }
     }
 

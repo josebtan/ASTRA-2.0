@@ -28,7 +28,13 @@ class ImageViewerDialog(
         binding = DialogImageViewerBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        binding.imageView.setImageURI(Uri.fromFile(file))
+        if (file.extension.equals("dng", ignoreCase = true)) {
+            binding.imageView.setImageResource(R.drawable.ic_manual)
+            binding.imageView.scaleType = android.widget.ImageView.ScaleType.CENTER_INSIDE
+            binding.tvRawNote.visibility = android.view.View.VISIBLE
+        } else {
+            binding.imageView.setImageURI(Uri.fromFile(file))
+        }
 
         binding.btnClose.setOnClickListener { dismiss() }
         binding.btnDelete.setOnClickListener {
