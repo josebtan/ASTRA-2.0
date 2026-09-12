@@ -17,8 +17,14 @@ Primera versión funcional: **app básica de cámara** con las funciones más co
 - ⚡ **Flash** con 3 modos: apagado → encendido → automático.
 - ⏱️ **Temporizador** con 3 estados: apagado → 3s → 10s, con cuenta regresiva visible en pantalla.
 - 🖼️ **Galería propia**: las fotos se guardan y se listan desde un directorio exclusivo de la app (no se mezclan con la galería general del sistema).
-  - Vista en cuadrícula de todas las fotos tomadas.
+  - Vista en **mosaico** (cuadrícula de 3 columnas, celdas cuadradas y espaciado parejo).
   - Visor a pantalla completa con opción de eliminar cada foto.
+
+### 🎨 Diseño
+
+- Los controles de **flash** y **temporizador** ahora son "chips" con icono + etiqueta de texto, para que su estado se entienda de un vistazo (OFF / ON / AUTO, OFF / 3s / 10s).
+- Degradados sutiles arriba y abajo de la vista de cámara para que los controles se lean bien sobre cualquier escena (clara u oscura).
+- Retroalimentación táctil (ripple) en todos los botones.
 
 ### Dónde se guardan las fotos
 

@@ -32,6 +32,25 @@ class BasicLogicTest {
     }
 
     @Test
+    fun `el ciclo del flash sigue la secuencia OFF - ON - AUTO - OFF`() {
+        fun nextFlashLabel(current: String): String = when (current) {
+            "OFF" -> "ON"
+            "ON" -> "AUTO"
+            else -> "OFF"
+        }
+
+        var label = "OFF"
+        label = nextFlashLabel(label)
+        assertEquals("ON", label)
+
+        label = nextFlashLabel(label)
+        assertEquals("AUTO", label)
+
+        label = nextFlashLabel(label)
+        assertEquals("OFF", label)
+    }
+
+    @Test
     fun `el nombre del archivo generado tiene el prefijo ASTRA y extension jpg`() {
         val fileName = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(System.currentTimeMillis())
         val photoFileName = "ASTRA_$fileName.jpg"

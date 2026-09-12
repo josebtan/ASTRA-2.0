@@ -132,16 +132,17 @@ class MainActivity : AppCompatActivity() {
             else -> ImageCapture.FLASH_MODE_OFF
         }
         imageCapture?.flashMode = flashMode
-        updateFlashIcon()
+        updateFlashUi()
     }
 
-    private fun updateFlashIcon() {
-        val iconRes = when (flashMode) {
-            ImageCapture.FLASH_MODE_ON -> R.drawable.ic_flash_on
-            ImageCapture.FLASH_MODE_AUTO -> R.drawable.ic_flash_auto
-            else -> R.drawable.ic_flash_off
+    private fun updateFlashUi() {
+        val (iconRes, label) = when (flashMode) {
+            ImageCapture.FLASH_MODE_ON -> R.drawable.ic_flash_on to "ON"
+            ImageCapture.FLASH_MODE_AUTO -> R.drawable.ic_flash_auto to "AUTO"
+            else -> R.drawable.ic_flash_off to getString(R.string.timer_off)
         }
-        binding.btnFlash.setImageResource(iconRes)
+        binding.ivFlashIcon.setImageResource(iconRes)
+        binding.tvFlashLabel.text = label
     }
 
     private fun cycleTimer() {
@@ -150,7 +151,7 @@ class MainActivity : AppCompatActivity() {
             3 -> 10
             else -> 0
         }
-        binding.btnTimer.text = if (timerSeconds == 0) getString(R.string.timer_off) else "${timerSeconds}s"
+        binding.tvTimerLabel.text = if (timerSeconds == 0) getString(R.string.timer_off) else "${timerSeconds}s"
     }
 
     private fun onCaptureClicked() {

@@ -45,7 +45,15 @@ class GalleryActivity : AppCompatActivity() {
             binding.recyclerView.visibility = View.VISIBLE
         }
 
-        binding.recyclerView.layoutManager = GridLayoutManager(this, 3)
+        val spanCount = 3
+        val spacingPx = (2 * resources.displayMetrics.density).toInt()
+
+        binding.recyclerView.layoutManager = GridLayoutManager(this, spanCount)
+        binding.recyclerView.clipToPadding = false
+        binding.recyclerView.setPadding(spacingPx, spacingPx, spacingPx, spacingPx)
+        if (binding.recyclerView.itemDecorationCount == 0) {
+            binding.recyclerView.addItemDecoration(GridSpacingItemDecoration(spanCount, spacingPx))
+        }
         binding.recyclerView.adapter = GalleryAdapter(images) { file ->
             showImageViewer(file)
         }
