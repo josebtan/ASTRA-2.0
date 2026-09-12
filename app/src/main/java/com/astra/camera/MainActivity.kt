@@ -188,7 +188,8 @@ class MainActivity : AppCompatActivity() {
         isoSupported = isoRange != null &&
             capabilities?.contains(CameraCharacteristics.REQUEST_AVAILABLE_CAPABILITIES_MANUAL_SENSOR) == true
 
-        rawSupported = capabilities?.contains(CameraCharacteristics.REQUEST_AVAILABLE_CAPABILITIES_RAW) == true
+        val captureCapabilities = ImageCapture.getImageCaptureCapabilities(camera.cameraInfo)
+        rawSupported = captureCapabilities.supportedOutputFormats.contains(ImageCapture.OUTPUT_FORMAT_RAW)
 
         if (!isoSupported) manualIso = null
         if (!rawSupported) rawEnabled = false
