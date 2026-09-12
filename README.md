@@ -66,8 +66,8 @@ ASTRA-2.0/
 ## 🔧 Requisitos
 
 - Android Studio (versión reciente, Koala o superior recomendado).
-- SDK de Android 34 (compileSdk / targetSdk).
-- minSdk 24 (Android 7.0+).
+- SDK de Android 35 (compileSdk / targetSdk), requerido por CameraX 1.5.0 (que trae el soporte de captura RAW).
+- minSdk 26 (Android 8.0+).
 - Kotlin 1.9.24 / AGP 8.5.2.
 
 ## 🤖 Integración continua (CI)
