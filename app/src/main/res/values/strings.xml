@@ -12,8 +12,6 @@
     <string name="content_description_gallery">Abrir galería</string>
     <string name="content_description_close">Cerrar</string>
     <string name="content_description_delete">Eliminar foto</string>
-    <string name="content_description_manual">Controles manuales</string>
-    <string name="manual_controls_title">Controles manuales</string>
     <string name="manual_iso_label">ISO</string>
     <string name="manual_exposure_label">Exposición (EV)</string>
     <string name="manual_contrast_label">Contraste</string>
@@ -23,4 +21,29 @@
     <string name="manual_not_supported">Este dispositivo no soporta ajuste manual de ISO</string>
     <string name="raw_not_supported">Este dispositivo no soporta captura RAW, se usará JPEG</string>
     <string name="auto_label">AUTO</string>
+
+    <!-- Menú de modos colapsable -->
+    <string name="content_description_modes">Menú de modos</string>
+    <string name="mode_normal_label">NORMAL</string>
+    <string name="mode_manual_name">Manual</string>
+    <string name="mode_manual_short">PRO</string>
+    <string name="mode_timelapse_name">Timelapse</string>
+    <string name="mode_timelapse_short">LAPSO</string>
+    <string name="mode_astro_name">Astrofotografía</string>
+    <string name="mode_astro_short">ASTRO</string>
+
+    <!-- Submenú Timelapse -->
+    <string name="timelapse_interval_label">Intervalo entre fotos</string>
+    <string name="timelapse_shots_label">Número de fotos</string>
+    <string name="timelapse_shots_infinite">∞ (hasta detener)</string>
+    <string name="timelapse_status_idle">Configura el intervalo y pulsa el disparador para empezar</string>
+    <string name="timelapse_status_running">Capturando %1$d / %2$s</string>
+    <string name="timelapse_note">Durante el timelapse, el botón de disparo inicia y detiene la secuencia. Mantén el teléfono estable o usa un trípode.</string>
+
+    <!-- Submenú Astrofotografía -->
+    <string name="astro_iso_label">ISO</string>
+    <string name="astro_exposure_label">Tiempo de exposición</string>
+    <string name="astro_noise_reduction_label">Reducción de ruido</string>
+    <string name="astro_note">Recomendado usar trípode. La exposición larga hace que la captura tarde varios segundos en completarse.</string>
+    <string name="astro_not_supported">Este dispositivo no soporta exposición manual larga; se usará el modo automático</string>
 </resources>

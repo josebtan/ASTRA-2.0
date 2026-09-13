@@ -143,9 +143,9 @@
             android:layout_height="1dp"
             android:layout_weight="1" />
 
-        <!-- Chip de controles manuales: ISO, exposición, contraste y RAW -->
+        <!-- Chip del menú de modos colapsable: Manual / Timelapse / Astrofotografía -->
         <LinearLayout
-            android:id="@+id/btnManual"
+            android:id="@+id/btnModes"
             android:layout_width="wrap_content"
             android:layout_height="40dp"
             android:orientation="horizontal"
@@ -156,21 +156,21 @@
             android:layout_marginStart="8dp"
             android:clickable="true"
             android:focusable="true"
-            android:contentDescription="@string/content_description_manual">
+            android:contentDescription="@string/content_description_modes">
 
             <ImageView
-                android:id="@+id/ivManualIcon"
+                android:id="@+id/ivModesIcon"
                 android:layout_width="18dp"
                 android:layout_height="18dp"
-                android:src="@drawable/ic_manual"
+                android:src="@drawable/ic_modes"
                 android:contentDescription="@null" />
 
             <TextView
-                android:id="@+id/tvManualLabel"
+                android:id="@+id/tvModesLabel"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginStart="6dp"
-                android:text="PRO"
+                android:text="@string/mode_normal_label"
                 android:textColor="@color/astra_white"
                 android:textSize="12sp"
                 android:textStyle="bold"
@@ -179,6 +179,520 @@
         </LinearLayout>
 
     </LinearLayout>
+
+    <!-- Panel colapsable de modos: se muestra/oculta al pulsar el chip "Modos".
+         Cada modo es una sección de acordeón con su propio submenú de parámetros. -->
+    <ScrollView
+        android:id="@+id/scrollModesPanel"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginHorizontal="16dp"
+        android:layout_marginBottom="12dp"
+        android:visibility="gone"
+        app:layout_constraintTop_toBottomOf="@id/topBar"
+        app:layout_constraintBottom_toTopOf="@id/bottomBar"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintHeight_max="380dp"
+        app:layout_constraintVertical_bias="1"
+        tools:visibility="visible">
+
+        <LinearLayout
+            android:id="@+id/panelModes"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:background="@drawable/bg_modes_panel"
+            android:padding="16dp">
+
+            <!-- ===== Manual ===== -->
+            <LinearLayout
+                android:id="@+id/headerManual"
+                android:layout_width="match_parent"
+                android:layout_height="44dp"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:clickable="true"
+                android:focusable="true"
+                android:foreground="?attr/selectableItemBackground">
+
+                <ImageView
+                    android:layout_width="20dp"
+                    android:layout_height="20dp"
+                    android:src="@drawable/ic_manual"
+                    android:contentDescription="@null" />
+
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:layout_marginStart="12dp"
+                    android:text="@string/mode_manual_name"
+                    android:textColor="@color/astra_white"
+                    android:textStyle="bold"
+                    android:textSize="15sp" />
+
+                <ImageView
+                    android:id="@+id/ivChevronManual"
+                    android:layout_width="20dp"
+                    android:layout_height="20dp"
+                    android:src="@drawable/ic_chevron_down"
+                    android:contentDescription="@null" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/contentManual"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:visibility="gone"
+                android:paddingStart="32dp"
+                android:paddingTop="8dp"
+                android:paddingBottom="8dp"
+                tools:visibility="visible">
+
+                <!-- ISO -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:layout_marginTop="8dp">
+
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="@string/manual_iso_label"
+                        android:textColor="@color/astra_white"
+                        android:textStyle="bold"
+                        android:textSize="13sp" />
+
+                    <TextView
+                        android:id="@+id/tvIsoValue"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/auto_label"
+                        android:textColor="@color/astra_accent"
+                        android:textStyle="bold"
+                        android:textSize="13sp" />
+                </LinearLayout>
+
+                <SeekBar
+                    android:id="@+id/seekIso"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:progressTint="@color/astra_accent"
+                    android:thumbTint="@color/astra_accent" />
+
+                <!-- Exposición -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:layout_marginTop="12dp">
+
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="@string/manual_exposure_label"
+                        android:textColor="@color/astra_white"
+                        android:textStyle="bold"
+                        android:textSize="13sp" />
+
+                    <TextView
+                        android:id="@+id/tvExposureValue"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="0.0"
+                        android:textColor="@color/astra_accent"
+                        android:textStyle="bold"
+                        android:textSize="13sp" />
+                </LinearLayout>
+
+                <SeekBar
+                    android:id="@+id/seekExposure"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:progressTint="@color/astra_accent"
+                    android:thumbTint="@color/astra_accent" />
+
+                <!-- Contraste -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:layout_marginTop="12dp">
+
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="@string/manual_contrast_label"
+                        android:textColor="@color/astra_white"
+                        android:textStyle="bold"
+                        android:textSize="13sp" />
+
+                    <TextView
+                        android:id="@+id/tvContrastValue"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="0"
+                        android:textColor="@color/astra_accent"
+                        android:textStyle="bold"
+                        android:textSize="13sp" />
+                </LinearLayout>
+
+                <SeekBar
+                    android:id="@+id/seekContrast"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:max="100"
+                    android:progress="50"
+                    android:progressTint="@color/astra_accent"
+                    android:thumbTint="@color/astra_accent" />
+
+                <!-- RAW -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:layout_marginTop="14dp">
+
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="@string/manual_raw_label"
+                        android:textColor="@color/astra_white"
+                        android:textStyle="bold"
+                        android:textSize="13sp" />
+
+                    <androidx.appcompat.widget.SwitchCompat
+                        android:id="@+id/switchRaw"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content" />
+                </LinearLayout>
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="10dp"
+                    android:text="@string/manual_note"
+                    android:textColor="@color/astra_gray"
+                    android:textSize="11sp" />
+
+                <TextView
+                    android:id="@+id/btnResetManual"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="end"
+                    android:layout_marginTop="10dp"
+                    android:text="@string/manual_reset"
+                    android:textColor="@color/astra_accent"
+                    android:textStyle="bold"
+                    android:textSize="13sp"
+                    android:padding="8dp"
+                    android:foreground="?attr/selectableItemBackground"
+                    android:clickable="true"
+                    android:focusable="true" />
+            </LinearLayout>
+
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:layout_marginVertical="8dp"
+                android:background="@color/astra_divider" />
+
+            <!-- ===== Timelapse ===== -->
+            <LinearLayout
+                android:id="@+id/headerTimelapse"
+                android:layout_width="match_parent"
+                android:layout_height="44dp"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:clickable="true"
+                android:focusable="true"
+                android:foreground="?attr/selectableItemBackground">
+
+                <ImageView
+                    android:layout_width="20dp"
+                    android:layout_height="20dp"
+                    android:src="@drawable/ic_timelapse"
+                    android:contentDescription="@null" />
+
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:layout_marginStart="12dp"
+                    android:text="@string/mode_timelapse_name"
+                    android:textColor="@color/astra_white"
+                    android:textStyle="bold"
+                    android:textSize="15sp" />
+
+                <ImageView
+                    android:id="@+id/ivChevronTimelapse"
+                    android:layout_width="20dp"
+                    android:layout_height="20dp"
+                    android:src="@drawable/ic_chevron_down"
+                    android:contentDescription="@null" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/contentTimelapse"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:visibility="gone"
+                android:paddingStart="32dp"
+                android:paddingTop="8dp"
+                android:paddingBottom="8dp"
+                tools:visibility="visible">
+
+                <!-- Intervalo -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:layout_marginTop="8dp">
+
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="@string/timelapse_interval_label"
+                        android:textColor="@color/astra_white"
+                        android:textStyle="bold"
+                        android:textSize="13sp" />
+
+                    <TextView
+                        android:id="@+id/tvTimelapseInterval"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="5s"
+                        android:textColor="@color/astra_accent"
+                        android:textStyle="bold"
+                        android:textSize="13sp" />
+                </LinearLayout>
+
+                <SeekBar
+                    android:id="@+id/seekTimelapseInterval"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:max="119"
+                    android:progress="4"
+                    android:progressTint="@color/astra_accent"
+                    android:thumbTint="@color/astra_accent" />
+
+                <!-- Número de fotos -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:layout_marginTop="12dp">
+
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="@string/timelapse_shots_label"
+                        android:textColor="@color/astra_white"
+                        android:textStyle="bold"
+                        android:textSize="13sp" />
+
+                    <TextView
+                        android:id="@+id/tvTimelapseShots"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/timelapse_shots_infinite"
+                        android:textColor="@color/astra_accent"
+                        android:textStyle="bold"
+                        android:textSize="13sp" />
+                </LinearLayout>
+
+                <SeekBar
+                    android:id="@+id/seekTimelapseShots"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:max="200"
+                    android:progress="0"
+                    android:progressTint="@color/astra_accent"
+                    android:thumbTint="@color/astra_accent" />
+
+                <TextView
+                    android:id="@+id/tvTimelapseStatus"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="10dp"
+                    android:text="@string/timelapse_status_idle"
+                    android:textColor="@color/astra_accent"
+                    android:textSize="12sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="6dp"
+                    android:text="@string/timelapse_note"
+                    android:textColor="@color/astra_gray"
+                    android:textSize="11sp" />
+            </LinearLayout>
+
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:layout_marginVertical="8dp"
+                android:background="@color/astra_divider" />
+
+            <!-- ===== Astrofotografía ===== -->
+            <LinearLayout
+                android:id="@+id/headerAstro"
+                android:layout_width="match_parent"
+                android:layout_height="44dp"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:clickable="true"
+                android:focusable="true"
+                android:foreground="?attr/selectableItemBackground">
+
+                <ImageView
+                    android:layout_width="20dp"
+                    android:layout_height="20dp"
+                    android:src="@drawable/ic_astro"
+                    android:contentDescription="@null" />
+
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:layout_marginStart="12dp"
+                    android:text="@string/mode_astro_name"
+                    android:textColor="@color/astra_white"
+                    android:textStyle="bold"
+                    android:textSize="15sp" />
+
+                <ImageView
+                    android:id="@+id/ivChevronAstro"
+                    android:layout_width="20dp"
+                    android:layout_height="20dp"
+                    android:src="@drawable/ic_chevron_down"
+                    android:contentDescription="@null" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/contentAstro"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:visibility="gone"
+                android:paddingStart="32dp"
+                android:paddingTop="8dp"
+                android:paddingBottom="8dp"
+                tools:visibility="visible">
+
+                <!-- ISO astro -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:layout_marginTop="8dp">
+
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="@string/astro_iso_label"
+                        android:textColor="@color/astra_white"
+                        android:textStyle="bold"
+                        android:textSize="13sp" />
+
+                    <TextView
+                        android:id="@+id/tvAstroIso"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/auto_label"
+                        android:textColor="@color/astra_accent"
+                        android:textStyle="bold"
+                        android:textSize="13sp" />
+                </LinearLayout>
+
+                <SeekBar
+                    android:id="@+id/seekAstroIso"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:progressTint="@color/astra_accent"
+                    android:thumbTint="@color/astra_accent" />
+
+                <!-- Tiempo de exposición astro -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:layout_marginTop="12dp">
+
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="@string/astro_exposure_label"
+                        android:textColor="@color/astra_white"
+                        android:textStyle="bold"
+                        android:textSize="13sp" />
+
+                    <TextView
+                        android:id="@+id/tvAstroExposure"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/auto_label"
+                        android:textColor="@color/astra_accent"
+                        android:textStyle="bold"
+                        android:textSize="13sp" />
+                </LinearLayout>
+
+                <SeekBar
+                    android:id="@+id/seekAstroExposure"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:progressTint="@color/astra_accent"
+                    android:thumbTint="@color/astra_accent" />
+
+                <!-- Reducción de ruido -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:layout_marginTop="14dp">
+
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="@string/astro_noise_reduction_label"
+                        android:textColor="@color/astra_white"
+                        android:textStyle="bold"
+                        android:textSize="13sp" />
+
+                    <androidx.appcompat.widget.SwitchCompat
+                        android:id="@+id/switchAstroNoiseReduction"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:checked="true" />
+                </LinearLayout>
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="10dp"
+                    android:text="@string/astro_note"
+                    android:textColor="@color/astra_gray"
+                    android:textSize="11sp" />
+            </LinearLayout>
+
+        </LinearLayout>
+    </ScrollView>
 
     <!-- Barra inferior: galería, captura y cambio de cámara -->
     <androidx.constraintlayout.widget.ConstraintLayout

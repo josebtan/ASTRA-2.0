@@ -6,4 +6,7 @@
     <color name="astra_white">#FFFFFF</color>
     <color name="astra_gray">#8A8A8A</color>
     <color name="astra_overlay">#99000000</color>
+    <color name="astra_panel_bg">#E61E1E1E</color>
+    <color name="astra_divider">#26FFFFFF</color>
+    <color name="astra_recording">#FF3B30</color>
 </resources>

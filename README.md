@@ -20,11 +20,14 @@ Primera versión funcional: **app básica de cámara** con las funciones más co
   - Vista en **mosaico** (cuadrícula de 3 columnas, celdas cuadradas y espaciado parejo).
   - Visor a pantalla completa con opción de eliminar cada foto.
 - 🔄 **Interfaz adaptativa a la orientación**: los controles rotan automáticamente para mantenerse legibles sin importar si sostienes el teléfono en vertical u horizontal (hacia cualquiera de los dos lados), y las fotos se guardan con la orientación correcta en todos los casos.
-- 🎛️ **Controles manuales (chip "PRO")**:
-  - **ISO** manual (en dispositivos que lo soportan; si no, se indica y se usa automático).
-  - **Exposición (EV)** — compensación de exposición estándar, funciona en la mayoría de los dispositivos.
-  - **Contraste** — se aplica como post-procesado al guardar la foto (no es un parámetro de hardware estándar entre fabricantes).
-- 📦 **Captura en RAW (.dng)** — activable desde el panel de controles manuales, en dispositivos compatibles. Si el dispositivo no soporta RAW, se avisa y se usa JPEG automáticamente. Los archivos `.dng` no se pueden previsualizar como miniatura (se muestra un ícono), pero sí eliminarse desde la galería o abrirse con una app compatible con RAW.
+- 🗂️ **Menú de modos colapsable** (chip "Modos" en la barra superior): un panel tipo acordeón con tres modos de disparo, cada uno con su propio submenú de parámetros. Solo un modo puede estar activo (y expandido) a la vez; volver a pulsar su encabezado lo desactiva y regresa al modo Normal (automático).
+  - **Manual**:
+    - **ISO** manual (en dispositivos que lo soportan; si no, se indica y se usa automático).
+    - **Exposición (EV)** — compensación de exposición estándar, funciona en la mayoría de los dispositivos.
+    - **Contraste** — se aplica como post-procesado al guardar la foto (no es un parámetro de hardware estándar entre fabricantes).
+    - **Captura en RAW (.dng)** — en dispositivos compatibles. Si el dispositivo no soporta RAW, se avisa y se usa JPEG automáticamente. Los archivos `.dng` no se pueden previsualizar como miniatura (se muestra un ícono), pero sí eliminarse desde la galería o abrirse con una app compatible con RAW.
+  - **Timelapse**: intervalo configurable (1–120s) y número de fotos (o infinito, hasta detener manualmente). Con el modo activo, el botón de disparo inicia/detiene la secuencia (se pone en rojo mientras está en curso) y un texto de estado muestra el progreso.
+  - **Astrofotografía**: pensado para fotografía nocturna con trípode. Permite fijar un ISO alto y un tiempo de exposición largo (hasta 30s, según lo que soporte el sensor) de forma independiente al modo Manual, con reducción de ruido activable/desactivable. Al disparar en este modo la app prioriza calidad sobre velocidad, por lo que la captura puede tardar varios segundos en completarse.
 
 ### 🎨 Diseño
 
@@ -51,7 +54,8 @@ ASTRA-2.0/
 │   └── src/main/
 │       ├── AndroidManifest.xml
 │       ├── java/com/astra/camera/
-│       │   ├── MainActivity.kt        # Pantalla de cámara (preview, captura, temporizador, flash)
+│       │   ├── MainActivity.kt        # Pantalla de cámara (preview, captura, temporizador, flash, menú de modos)
+│       │   ├── CameraMode.kt          # Enum de modos de disparo: Normal, Manual, Timelapse, Astro
 │       │   ├── GalleryActivity.kt     # Pantalla de galería propia
 │       │   ├── GalleryAdapter.kt      # Adaptador de la cuadrícula de fotos
 │       │   └── ImageViewerDialog.kt   # Visor de foto a pantalla completa

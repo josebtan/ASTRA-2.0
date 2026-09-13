@@ -8,11 +8,15 @@ import android.hardware.camera2.CaptureRequest
 import android.net.Uri
 import android.os.Bundle
 import android.os.CountDownTimer
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
 import android.util.Range
 import android.view.OrientationEventListener
 import android.view.Surface
 import android.view.View
+import android.view.ViewGroup
+import android.widget.SeekBar
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
@@ -27,6 +31,8 @@ import androidx.camera.core.ImageCaptureException
 import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.core.content.ContextCompat
+import androidx.transition.AutoTransition
+import androidx.transition.TransitionManager
 import com.astra.camera.databinding.ActivityMainBinding
 import java.io.File
 import java.text.SimpleDateFormat
@@ -35,8 +41,10 @@ import java.util.Locale
 /**
  * Pantalla principal de la cámara.
  * Permite tomar fotos, usar un temporizador (3s / 10s), alternar el flash,
- * cambiar entre cámara frontal/trasera, ajustar controles manuales
- * (ISO, exposición, contraste, RAW) y acceder a la galería propia de ASTRA.
+ * cambiar entre cámara frontal/trasera y elegir un modo de disparo desde un
+ * menú colapsable: Manual (ISO, exposición, contraste, RAW), Timelapse y
+ * Astrofotografía (exposición larga), cada uno con su propio submenú de
+ * parámetros.
  *
  * La interfaz también se adapta a la orientación física del teléfono: los
  * controles rotan automáticamente para mantenerse legibles sin importar si
@@ -58,14 +66,32 @@ class MainActivity : AppCompatActivity() {
     private var timerSeconds = 0
     private var countDownTimer: CountDownTimer? = null
 
-    // --- Controles manuales ---
+    // --- Menú de modos ---
+    private var currentMode = CameraMode.NORMAL
+
+    // --- Controles manuales (modo Manual) ---
     private var manualIso: Int? = null // null = automático
     private var exposureIndex = 0
     private var contrastValue = 0 // -50..50, se aplica al guardar la foto
     private var rawEnabled = false
 
+    // --- Controles de astrofotografía (modo Astro) ---
+    private var astroIso: Int? = null // null = automático
+    private var astroExposureNs: Long? = null // null = automático
+    private var astroNoiseReductionOff = false
+
+    // --- Timelapse ---
+    private var timelapseIntervalSeconds = 5
+    private var timelapseTotalShots = 0 // 0 = infinito, hasta detener manualmente
+    private var timelapseShotsTaken = 0
+    private var isTimelapseRunning = false
+    private val timelapseHandler = Handler(Looper.getMainLooper())
+    private var timelapseRunnable: Runnable? = null
+
+    // --- Capacidades del sensor (dependen de la cámara frontal/trasera activa) ---
     private var isoRange: Range<Int>? = null
-    private var isoSupported = false
+    private var exposureTimeRange: Range<Long>? = null
+    private var manualSensorSupported = false
     private var rawSupported = false
 
     // --- Orientación física del teléfono ---
@@ -101,11 +127,15 @@ class MainActivity : AppCompatActivity() {
         binding.btnSwitchCamera.setOnClickListener { switchCamera() }
         binding.btnFlash.setOnClickListener { toggleFlash() }
         binding.btnTimer.setOnClickListener { cycleTimer() }
-        binding.btnManual.setOnClickListener { openManualControls() }
+        binding.btnModes.setOnClickListener { toggleModesPanel() }
         binding.btnGallery.setOnClickListener {
             startActivity(Intent(this, GalleryActivity::class.java))
         }
 
+        setupModesAccordion()
+        setupManualSection()
+        setupTimelapseSection()
+        setupAstroSection()
         setupOrientationListener()
     }
 
@@ -120,6 +150,7 @@ class MainActivity : AppCompatActivity() {
     override fun onPause() {
         super.onPause()
         orientationEventListener.disable()
+        if (isTimelapseRunning) stopTimelapse()
     }
 
     private fun hasCameraPermission() =
@@ -141,9 +172,17 @@ class MainActivity : AppCompatActivity() {
             it.setSurfaceProvider(binding.viewFinder.surfaceProvider)
         }
 
+        // En modo Astro se prioriza calidad sobre latencia, ya que la
+        // exposición larga hace que la velocidad de disparo sea irrelevante.
+        val captureMode = if (currentMode == CameraMode.ASTRO) {
+            ImageCapture.CAPTURE_MODE_MAXIMIZE_QUALITY
+        } else {
+            ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY
+        }
+
         val captureBuilder = ImageCapture.Builder()
             .setFlashMode(flashMode)
-            .setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY)
+            .setCaptureMode(captureMode)
             .setTargetRotation(currentRotation)
 
         val cameraSelector = CameraSelector.Builder()
@@ -185,14 +224,22 @@ class MainActivity : AppCompatActivity() {
         )
 
         isoRange = camera2Info.getCameraCharacteristic(CameraCharacteristics.SENSOR_INFO_SENSITIVITY_RANGE)
-        isoSupported = isoRange != null &&
+        exposureTimeRange = camera2Info.getCameraCharacteristic(CameraCharacteristics.SENSOR_INFO_EXPOSURE_TIME_RANGE)
+        manualSensorSupported = isoRange != null &&
             capabilities?.contains(CameraCharacteristics.REQUEST_AVAILABLE_CAPABILITIES_MANUAL_SENSOR) == true
 
         val captureCapabilities = ImageCapture.getImageCaptureCapabilities(camera.cameraInfo)
         rawSupported = captureCapabilities.supportedOutputFormats.contains(ImageCapture.OUTPUT_FORMAT_RAW)
 
-        if (!isoSupported) manualIso = null
+        if (!manualSensorSupported) {
+            manualIso = null
+            astroIso = null
+            astroExposureNs = null
+        }
         if (!rawSupported) rawEnabled = false
+
+        refreshIsoSeekBarBounds()
+        refreshAstroSeekBarBounds()
     }
 
     @OptIn(ExperimentalCamera2Interop::class)
@@ -200,19 +247,39 @@ class MainActivity : AppCompatActivity() {
         val cam = camera ?: return
         val camera2Control = Camera2CameraControl.from(cam.cameraControl)
 
-        if (manualIso != null && isoSupported) {
-            val options = CaptureRequestOptions.Builder()
-                .setCaptureRequestOption(CaptureRequest.CONTROL_AE_MODE, CaptureRequest.CONTROL_AE_MODE_OFF)
-                .setCaptureRequestOption(CaptureRequest.SENSOR_SENSITIVITY, manualIso)
-                .setCaptureRequestOption(CaptureRequest.SENSOR_EXPOSURE_TIME, DEFAULT_EXPOSURE_TIME_NS)
-                .build()
-            camera2Control.setCaptureRequestOptions(options)
-        } else {
-            val options = CaptureRequestOptions.Builder()
-                .setCaptureRequestOption(CaptureRequest.CONTROL_AE_MODE, CaptureRequest.CONTROL_AE_MODE_ON)
-                .build()
-            camera2Control.setCaptureRequestOptions(options)
+        val options = when {
+            // Astrofotografía: ISO alto + exposición larga, con reducción de
+            // ruido configurable. Tiene prioridad sobre el modo Manual.
+            currentMode == CameraMode.ASTRO && manualSensorSupported &&
+                astroIso != null && astroExposureNs != null -> {
+                CaptureRequestOptions.Builder()
+                    .setCaptureRequestOption(CaptureRequest.CONTROL_AE_MODE, CaptureRequest.CONTROL_AE_MODE_OFF)
+                    .setCaptureRequestOption(CaptureRequest.SENSOR_SENSITIVITY, astroIso)
+                    .setCaptureRequestOption(CaptureRequest.SENSOR_EXPOSURE_TIME, astroExposureNs)
+                    .setCaptureRequestOption(
+                        CaptureRequest.NOISE_REDUCTION_MODE,
+                        if (astroNoiseReductionOff) {
+                            CaptureRequest.NOISE_REDUCTION_MODE_OFF
+                        } else {
+                            CaptureRequest.NOISE_REDUCTION_MODE_HIGH_QUALITY
+                        }
+                    )
+                    .build()
+            }
+            manualIso != null && manualSensorSupported -> {
+                CaptureRequestOptions.Builder()
+                    .setCaptureRequestOption(CaptureRequest.CONTROL_AE_MODE, CaptureRequest.CONTROL_AE_MODE_OFF)
+                    .setCaptureRequestOption(CaptureRequest.SENSOR_SENSITIVITY, manualIso)
+                    .setCaptureRequestOption(CaptureRequest.SENSOR_EXPOSURE_TIME, DEFAULT_EXPOSURE_TIME_NS)
+                    .build()
+            }
+            else -> {
+                CaptureRequestOptions.Builder()
+                    .setCaptureRequestOption(CaptureRequest.CONTROL_AE_MODE, CaptureRequest.CONTROL_AE_MODE_ON)
+                    .build()
+            }
         }
+        camera2Control.setCaptureRequestOptions(options)
     }
 
     private fun applyExposure() {
@@ -257,69 +324,353 @@ class MainActivity : AppCompatActivity() {
         binding.tvTimerLabel.text = if (timerSeconds == 0) getString(R.string.timer_off) else "${timerSeconds}s"
     }
 
-    // --- Controles manuales (ISO, exposición, contraste, RAW) ---
+    // ============================================================
+    // Menú de modos colapsable (acordeón: Manual / Timelapse / Astro)
+    // ============================================================
 
-    private fun openManualControls() {
-        val cam = camera
-        val exposureState = cam?.cameraInfo?.exposureState
-        val exposureRange = exposureState?.exposureCompensationRange ?: Range(0, 0)
-        val exposureStep = exposureState?.exposureCompensationStep?.toDouble() ?: 0.0
+    private fun toggleModesPanel() {
+        val panelContainer = binding.scrollModesPanel
+        val isVisible = panelContainer.visibility == View.VISIBLE
+        animateContainer(binding.root)
+        panelContainer.visibility = if (isVisible) View.GONE else View.VISIBLE
+    }
 
-        ManualControlsDialog(
-            context = this,
-            isoSupported = isoSupported,
-            isoRange = isoRange,
-            currentIso = manualIso,
-            exposureRange = exposureRange,
-            exposureStepValue = exposureStep,
-            currentExposureIndex = exposureIndex,
-            currentContrast = contrastValue,
-            rawSupported = rawSupported,
-            currentRawEnabled = rawEnabled,
-            onIsoChanged = { iso ->
-                manualIso = iso
+    private fun setupModesAccordion() {
+        binding.headerManual.setOnClickListener { selectMode(CameraMode.MANUAL) }
+        binding.headerTimelapse.setOnClickListener { selectMode(CameraMode.TIMELAPSE) }
+        binding.headerAstro.setOnClickListener { selectMode(CameraMode.ASTRO) }
+        updateModesUi()
+    }
+
+    /**
+     * Selecciona (o deselecciona, si ya estaba activo) un modo de disparo.
+     * Solo un submenú de parámetros permanece expandido a la vez.
+     */
+    private fun selectMode(mode: CameraMode) {
+        val previousMode = currentMode
+        currentMode = if (currentMode == mode) CameraMode.NORMAL else mode
+
+        if (isTimelapseRunning && currentMode != CameraMode.TIMELAPSE) {
+            stopTimelapse()
+        }
+
+        updateModesUi()
+
+        // El modo Astro necesita reenlazar la cámara (cambia el modo de
+        // captura a MAXIMIZE_QUALITY); el resto de modos solo cambian las
+        // opciones de captura sobre la cámara ya enlazada.
+        if (previousMode == CameraMode.ASTRO || currentMode == CameraMode.ASTRO) {
+            bindCameraUseCases()
+        } else {
+            applyManualCaptureOptions()
+            applyExposure()
+        }
+    }
+
+    private fun animateContainer(container: ViewGroup) {
+        TransitionManager.beginDelayedTransition(container, AutoTransition().setDuration(200))
+    }
+
+    private fun updateModesUi() {
+        animateContainer(binding.panelModes)
+
+        binding.contentManual.visibility = if (currentMode == CameraMode.MANUAL) View.VISIBLE else View.GONE
+        binding.contentTimelapse.visibility = if (currentMode == CameraMode.TIMELAPSE) View.VISIBLE else View.GONE
+        binding.contentAstro.visibility = if (currentMode == CameraMode.ASTRO) View.VISIBLE else View.GONE
+
+        binding.ivChevronManual.rotation = if (currentMode == CameraMode.MANUAL) 180f else 0f
+        binding.ivChevronTimelapse.rotation = if (currentMode == CameraMode.TIMELAPSE) 180f else 0f
+        binding.ivChevronAstro.rotation = if (currentMode == CameraMode.ASTRO) 180f else 0f
+
+        val labelRes = when (currentMode) {
+            CameraMode.NORMAL -> R.string.mode_normal_label
+            CameraMode.MANUAL -> R.string.mode_manual_short
+            CameraMode.TIMELAPSE -> R.string.mode_timelapse_short
+            CameraMode.ASTRO -> R.string.mode_astro_short
+        }
+        binding.tvModesLabel.text = getString(labelRes)
+        binding.ivModesIcon.alpha = if (currentMode == CameraMode.NORMAL) 0.7f else 1f
+    }
+
+    // --- Submenú Manual: ISO, exposición, contraste, RAW ---
+
+    private fun setupManualSection() {
+        binding.seekIso.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(seekBar: SeekBar, progress: Int, fromUser: Boolean) {
+                val range = isoRange
+                updateIsoLabel(progress, range)
+                if (!fromUser || range == null) return
+                manualIso = if (progress == 0) null else range.lower + (progress - 1)
                 applyManualCaptureOptions()
-            },
-            onExposureChanged = { index ->
+            }
+
+            override fun onStartTrackingTouch(seekBar: SeekBar) = Unit
+            override fun onStopTrackingTouch(seekBar: SeekBar) = Unit
+        })
+
+        binding.seekExposure.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(seekBar: SeekBar, progress: Int, fromUser: Boolean) {
+                val exposureState = camera?.cameraInfo?.exposureState
+                val range = exposureState?.exposureCompensationRange ?: Range(0, 0)
+                val step = exposureState?.exposureCompensationStep?.toDouble() ?: 0.0
+                val index = range.lower + progress
+                binding.tvExposureValue.text = String.format(Locale.US, "%+.1f", index * step)
+                if (!fromUser) return
                 exposureIndex = index
                 applyExposure()
-            },
-            onContrastChanged = { contrast ->
-                contrastValue = contrast
-            },
-            onRawToggled = { enabled ->
-                if (enabled && !rawSupported) {
-                    Toast.makeText(this, getString(R.string.raw_not_supported), Toast.LENGTH_LONG).show()
-                } else {
-                    rawEnabled = enabled
-                    updateManualLabel()
-                    bindCameraUseCases()
-                }
-            },
-            onReset = {
-                manualIso = null
-                exposureIndex = 0
-                contrastValue = 0
-                rawEnabled = false
-                updateManualLabel()
-                applyManualCaptureOptions()
-                applyExposure()
-                bindCameraUseCases()
             }
-        ).show()
 
-        updateManualLabel()
+            override fun onStartTrackingTouch(seekBar: SeekBar) = Unit
+            override fun onStopTrackingTouch(seekBar: SeekBar) = Unit
+        })
+
+        binding.seekContrast.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(seekBar: SeekBar, progress: Int, fromUser: Boolean) {
+                val contrast = progress - 50
+                binding.tvContrastValue.text = contrast.toString()
+                if (fromUser) contrastValue = contrast
+            }
+
+            override fun onStartTrackingTouch(seekBar: SeekBar) = Unit
+            override fun onStopTrackingTouch(seekBar: SeekBar) = Unit
+        })
+
+        binding.switchRaw.setOnCheckedChangeListener { _, isChecked ->
+            if (isChecked && !rawSupported) {
+                binding.switchRaw.isChecked = false
+                Toast.makeText(this, getString(R.string.raw_not_supported), Toast.LENGTH_LONG).show()
+                return@setOnCheckedChangeListener
+            }
+            rawEnabled = isChecked
+            bindCameraUseCases()
+        }
+
+        binding.btnResetManual.setOnClickListener {
+            manualIso = null
+            exposureIndex = 0
+            contrastValue = 0
+            rawEnabled = false
+
+            val exposureLower = camera?.cameraInfo?.exposureState?.exposureCompensationRange?.lower ?: 0
+
+            binding.seekIso.progress = 0
+            binding.seekExposure.progress = -exposureLower
+            binding.seekContrast.progress = 50
+            binding.switchRaw.isChecked = false
+
+            applyManualCaptureOptions()
+            applyExposure()
+            bindCameraUseCases()
+        }
     }
 
-    private fun updateManualLabel() {
-        val isActive = manualIso != null || exposureIndex != 0 || contrastValue != 0 || rawEnabled
-        binding.tvManualLabel.text = if (rawEnabled) "RAW" else "PRO"
-        binding.ivManualIcon.alpha = if (isActive) 1f else 0.7f
+    private fun updateIsoLabel(progress: Int, range: Range<Int>?) {
+        binding.tvIsoValue.text = if (progress == 0 || range == null) {
+            getString(R.string.auto_label)
+        } else {
+            (range.lower + (progress - 1)).toString()
+        }
     }
 
-    // --- Captura ---
+    /** Configura el rango del SeekBar de ISO según las capacidades reales del sensor activo. */
+    private fun refreshIsoSeekBarBounds() {
+        val range = isoRange
+        if (!manualSensorSupported || range == null) {
+            binding.tvIsoValue.text = getString(R.string.manual_not_supported)
+            binding.seekIso.isEnabled = false
+        } else {
+            binding.seekIso.isEnabled = true
+            val span = range.upper - range.lower
+            binding.seekIso.max = span + 1 // 0 = AUTO, 1..span+1 = valor manual
+            val progress = if (manualIso == null) 0 else (manualIso!! - range.lower) + 1
+            binding.seekIso.progress = progress
+            updateIsoLabel(progress, range)
+        }
+
+        val exposureState = camera?.cameraInfo?.exposureState
+        val exposureRange = exposureState?.exposureCompensationRange ?: Range(0, 0)
+        binding.seekExposure.max = exposureRange.upper - exposureRange.lower
+        binding.seekExposure.progress = exposureIndex - exposureRange.lower
+
+        binding.switchRaw.isEnabled = rawSupported
+        binding.switchRaw.isChecked = rawEnabled
+    }
+
+    // --- Submenú Timelapse: intervalo, número de fotos, iniciar/detener ---
+
+    private fun setupTimelapseSection() {
+        binding.seekTimelapseInterval.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(seekBar: SeekBar, progress: Int, fromUser: Boolean) {
+                timelapseIntervalSeconds = progress + 1 // 1..120 segundos
+                binding.tvTimelapseInterval.text = "${timelapseIntervalSeconds}s"
+            }
+
+            override fun onStartTrackingTouch(seekBar: SeekBar) = Unit
+            override fun onStopTrackingTouch(seekBar: SeekBar) = Unit
+        })
+        binding.tvTimelapseInterval.text = "${timelapseIntervalSeconds}s"
+
+        binding.seekTimelapseShots.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(seekBar: SeekBar, progress: Int, fromUser: Boolean) {
+                timelapseTotalShots = progress // 0 = infinito
+                binding.tvTimelapseShots.text = if (progress == 0) {
+                    getString(R.string.timelapse_shots_infinite)
+                } else {
+                    progress.toString()
+                }
+            }
+
+            override fun onStartTrackingTouch(seekBar: SeekBar) = Unit
+            override fun onStopTrackingTouch(seekBar: SeekBar) = Unit
+        })
+    }
+
+    private fun toggleTimelapse() {
+        if (isTimelapseRunning) stopTimelapse() else startTimelapse()
+    }
+
+    private fun startTimelapse() {
+        if (imageCapture == null) return
+        isTimelapseRunning = true
+        timelapseShotsTaken = 0
+        binding.btnCapture.isSelected = true
+        updateTimelapseStatus()
+        scheduleNextTimelapseShot(immediate = true)
+    }
+
+    private fun scheduleNextTimelapseShot(immediate: Boolean = false) {
+        val delayMs = if (immediate) 0L else timelapseIntervalSeconds * 1000L
+        val runnable = Runnable {
+            if (!isTimelapseRunning) return@Runnable
+            takePhoto()
+            timelapseShotsTaken++
+            updateTimelapseStatus()
+            if (timelapseTotalShots == 0 || timelapseShotsTaken < timelapseTotalShots) {
+                scheduleNextTimelapseShot()
+            } else {
+                stopTimelapse()
+            }
+        }
+        timelapseRunnable = runnable
+        timelapseHandler.postDelayed(runnable, delayMs)
+    }
+
+    private fun stopTimelapse() {
+        isTimelapseRunning = false
+        timelapseRunnable?.let { timelapseHandler.removeCallbacks(it) }
+        timelapseRunnable = null
+        binding.btnCapture.isSelected = false
+        updateTimelapseStatus()
+    }
+
+    private fun updateTimelapseStatus() {
+        binding.tvTimelapseStatus.text = if (isTimelapseRunning) {
+            val totalLabel = if (timelapseTotalShots == 0) "∞" else timelapseTotalShots.toString()
+            getString(R.string.timelapse_status_running, timelapseShotsTaken, totalLabel)
+        } else {
+            getString(R.string.timelapse_status_idle)
+        }
+    }
+
+    // --- Submenú Astrofotografía: ISO alto + exposición larga ---
+
+    private fun setupAstroSection() {
+        binding.seekAstroIso.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(seekBar: SeekBar, progress: Int, fromUser: Boolean) {
+                val range = isoRange
+                if (range == null) {
+                    binding.tvAstroIso.text = getString(R.string.manual_not_supported)
+                    return
+                }
+                val iso = range.lower + progress
+                binding.tvAstroIso.text = iso.toString()
+                if (!fromUser) return
+                astroIso = iso
+                if (currentMode == CameraMode.ASTRO) applyManualCaptureOptions()
+            }
+
+            override fun onStartTrackingTouch(seekBar: SeekBar) = Unit
+            override fun onStopTrackingTouch(seekBar: SeekBar) = Unit
+        })
+
+        binding.seekAstroExposure.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(seekBar: SeekBar, progress: Int, fromUser: Boolean) {
+                val range = exposureTimeRange
+                if (range == null) {
+                    binding.tvAstroExposure.text = getString(R.string.astro_not_supported)
+                    return
+                }
+                val exposureNs = range.lower + progress * ASTRO_EXPOSURE_STEP_NS
+                binding.tvAstroExposure.text = formatExposureSeconds(exposureNs)
+                if (!fromUser) return
+                astroExposureNs = exposureNs
+                if (currentMode == CameraMode.ASTRO) applyManualCaptureOptions()
+            }
+
+            override fun onStartTrackingTouch(seekBar: SeekBar) = Unit
+            override fun onStopTrackingTouch(seekBar: SeekBar) = Unit
+        })
+
+        binding.switchAstroNoiseReduction.setOnCheckedChangeListener { _, isChecked ->
+            // El switch representa "reducción de ruido activada"; internamente
+            // astroNoiseReductionOff indica si hay que desactivarla (invertido).
+            astroNoiseReductionOff = !isChecked
+            if (currentMode == CameraMode.ASTRO) applyManualCaptureOptions()
+        }
+    }
+
+    private fun formatExposureSeconds(exposureNs: Long): String {
+        val seconds = exposureNs / 1_000_000_000.0
+        return if (seconds < 1.0) {
+            String.format(Locale.US, "1/%d s", (1.0 / seconds).toInt().coerceAtLeast(1))
+        } else {
+            String.format(Locale.US, "%.1f s", seconds)
+        }
+    }
+
+    /** Configura el rango de los SeekBars de ISO y exposición del modo Astro. */
+    private fun refreshAstroSeekBarBounds() {
+        val iso = isoRange
+        val exposure = exposureTimeRange
+
+        if (!manualSensorSupported || iso == null) {
+            binding.tvAstroIso.text = getString(R.string.manual_not_supported)
+            binding.seekAstroIso.isEnabled = false
+        } else {
+            binding.seekAstroIso.isEnabled = true
+            binding.seekAstroIso.max = iso.upper - iso.lower
+            val initialIso = astroIso ?: (iso.lower + (iso.upper - iso.lower) * ASTRO_DEFAULT_ISO_FRACTION / 100)
+            astroIso = initialIso
+            binding.seekAstroIso.progress = initialIso - iso.lower
+            binding.tvAstroIso.text = initialIso.toString()
+        }
+
+        if (!manualSensorSupported || exposure == null) {
+            binding.tvAstroExposure.text = getString(R.string.astro_not_supported)
+            binding.seekAstroExposure.isEnabled = false
+        } else {
+            binding.seekAstroExposure.isEnabled = true
+            // Se limita a un máximo razonable de 30s para uso manual, aunque
+            // el sensor soporte más, para mantener el SeekBar manejable.
+            val cappedUpper = exposure.upper.coerceAtMost(ASTRO_MAX_EXPOSURE_NS)
+            val steps = ((cappedUpper - exposure.lower) / ASTRO_EXPOSURE_STEP_NS).toInt().coerceAtLeast(1)
+            binding.seekAstroExposure.max = steps
+            val initialExposureNs = (astroExposureNs ?: ASTRO_DEFAULT_EXPOSURE_NS).coerceIn(exposure.lower, cappedUpper)
+            astroExposureNs = initialExposureNs
+            binding.seekAstroExposure.progress = ((initialExposureNs - exposure.lower) / ASTRO_EXPOSURE_STEP_NS).toInt()
+            binding.tvAstroExposure.text = formatExposureSeconds(initialExposureNs)
+        }
+    }
+
+    // ============================================================
+    // Captura
+    // ============================================================
 
     private fun onCaptureClicked() {
+        if (currentMode == CameraMode.TIMELAPSE) {
+            toggleTimelapse()
+            return
+        }
         if (timerSeconds == 0) {
             takePhoto()
         } else {
@@ -346,7 +697,7 @@ class MainActivity : AppCompatActivity() {
     private fun takePhoto() {
         val capture = imageCapture ?: return
 
-        val fileName = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(System.currentTimeMillis())
+        val fileName = SimpleDateFormat("yyyyMMdd_HHmmss_SSS", Locale.US).format(System.currentTimeMillis())
         val extension = if (rawEnabled && rawSupported) "dng" else "jpg"
         val photoFile = File(outputDirectory, "ASTRA_$fileName.$extension")
         val isRawCapture = extension == "dng"
@@ -366,7 +717,9 @@ class MainActivity : AppCompatActivity() {
                     if (!isRawCapture && contrastValue != 0) {
                         ImageProcessing.applyContrast(photoFile, contrastValue)
                     }
-                    Toast.makeText(this@MainActivity, getString(R.string.photo_saved), Toast.LENGTH_SHORT).show()
+                    if (!isTimelapseRunning) {
+                        Toast.makeText(this@MainActivity, getString(R.string.photo_saved), Toast.LENGTH_SHORT).show()
+                    }
                     updateGalleryThumbnail()
                 }
             }
@@ -388,7 +741,10 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    // --- Orientación adaptativa ---
+    // ============================================================
+    // Orientación adaptativa: la interfaz (y la foto resultante) se ajustan
+    // tanto en vertical como en horizontal, hacia cualquiera de los dos lados.
+    // ============================================================
 
     private fun setupOrientationListener() {
         orientationEventListener = object : OrientationEventListener(this) {
@@ -428,8 +784,8 @@ class MainActivity : AppCompatActivity() {
             binding.ivFlashIcon,
             binding.tvFlashLabel,
             binding.tvTimerLabel,
-            binding.ivManualIcon,
-            binding.tvManualLabel,
+            binding.ivModesIcon,
+            binding.tvModesLabel,
             binding.btnGallery,
             binding.btnSwitchCamera
         )
@@ -442,6 +798,7 @@ class MainActivity : AppCompatActivity() {
     override fun onDestroy() {
         super.onDestroy()
         countDownTimer?.cancel()
+        stopTimelapse()
     }
 
     companion object {
@@ -451,6 +808,12 @@ class MainActivity : AppCompatActivity() {
         // ya que al desactivar la exposición automática también hay que fijar
         // manualmente el tiempo de exposición para no capturar cuadros negros.
         private const val DEFAULT_EXPOSURE_TIME_NS = 10_000_000L
+
+        // --- Astrofotografía: pasos y límites del SeekBar de exposición larga ---
+        private const val ASTRO_EXPOSURE_STEP_NS = 200_000_000L // 0.2s por paso
+        private const val ASTRO_MAX_EXPOSURE_NS = 30_000_000_000L // tope de 30s
+        private const val ASTRO_DEFAULT_EXPOSURE_NS = 4_000_000_000L // 4s por defecto
+        private const val ASTRO_DEFAULT_ISO_FRACTION = 70 // % del rango de ISO disponible
 
         /**
          * Directorio propio de la app dentro del almacenamiento específico de la aplicación.
