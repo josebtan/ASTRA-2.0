@@ -60,6 +60,15 @@ class BasicLogicTest {
     }
 
     @Test
+    fun `la duracion estimada del timelapse es fotos entre fps`() {
+        fun estimateSeconds(frameCount: Int, fps: Int): Float = frameCount.toFloat() / fps
+
+        assertEquals(10f, estimateSeconds(100, 10))
+        assertEquals(5f, estimateSeconds(50, 10))
+        assertEquals(20f, estimateSeconds(100, 5))
+    }
+
+    @Test
     fun `el nombre del archivo generado tiene el prefijo ASTRA y extension jpg`() {
         val fileName = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(System.currentTimeMillis())
         val photoFileName = "ASTRA_$fileName.jpg"

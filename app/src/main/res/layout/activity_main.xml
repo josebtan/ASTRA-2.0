@@ -521,6 +521,41 @@
                     android:progressTint="@color/astra_accent"
                     android:thumbTint="@color/astra_accent" />
 
+                <!-- Velocidad (FPS) del video final -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:layout_marginTop="12dp">
+
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="@string/timelapse_fps_label"
+                        android:textColor="@color/astra_white"
+                        android:textStyle="bold"
+                        android:textSize="13sp" />
+
+                    <TextView
+                        android:id="@+id/tvTimelapseFps"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="10 fps"
+                        android:textColor="@color/astra_accent"
+                        android:textStyle="bold"
+                        android:textSize="13sp" />
+                </LinearLayout>
+
+                <SeekBar
+                    android:id="@+id/seekTimelapseFps"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:max="28"
+                    android:progress="8"
+                    android:progressTint="@color/astra_accent"
+                    android:thumbTint="@color/astra_accent" />
+
                 <TextView
                     android:id="@+id/tvTimelapseStatus"
                     android:layout_width="match_parent"
@@ -530,6 +565,15 @@
                     android:textColor="@color/astra_accent"
                     android:textSize="12sp"
                     android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/tvTimelapseDuration"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="2dp"
+                    android:text="@string/timelapse_duration_unknown"
+                    android:textColor="@color/astra_white"
+                    android:textSize="12sp" />
 
                 <TextView
                     android:layout_width="match_parent"

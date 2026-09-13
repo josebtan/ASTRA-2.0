@@ -84,8 +84,10 @@ class MainActivity : AppCompatActivity() {
     // --- Timelapse ---
     private var timelapseIntervalSeconds = 5
     private var timelapseTotalShots = 0 // 0 = infinito, hasta detener manualmente
+    private var timelapseVideoFps = 10 // fotogramas por segundo del .mp4 final
     private var timelapseShotsTaken = 0
     private var isTimelapseRunning = false
+    private var timelapseCaptureInFlight = false
     private val timelapseHandler = Handler(Looper.getMainLooper())
     private var timelapseRunnable: Runnable? = null
     // Carpeta temporal (caché de la app) donde se guardan los fotogramas de la
@@ -547,11 +549,26 @@ class MainActivity : AppCompatActivity() {
                 } else {
                     progress.toString()
                 }
+                updateTimelapseStatus()
             }
 
             override fun onStartTrackingTouch(seekBar: SeekBar) = Unit
             override fun onStopTrackingTouch(seekBar: SeekBar) = Unit
         })
+
+        binding.seekTimelapseFps.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(seekBar: SeekBar, progress: Int, fromUser: Boolean) {
+                timelapseVideoFps = progress + 2 // 2..30 fps
+                binding.tvTimelapseFps.text = "${timelapseVideoFps} fps"
+                updateTimelapseStatus()
+            }
+
+            override fun onStartTrackingTouch(seekBar: SeekBar) = Unit
+            override fun onStopTrackingTouch(seekBar: SeekBar) = Unit
+        })
+        binding.tvTimelapseFps.text = "${timelapseVideoFps} fps"
+
+        updateTimelapseStatus()
     }
 
     private fun toggleTimelapse() {
@@ -564,39 +581,83 @@ class MainActivity : AppCompatActivity() {
         // los fotogramas se guardan aquí y se borran en cuanto se genera el video.
         timelapseFramesDir = File(cacheDir, "astra_timelapse_${System.currentTimeMillis()}").apply { mkdirs() }
         isTimelapseRunning = true
+        timelapseCaptureInFlight = false
         timelapseShotsTaken = 0
         binding.btnCapture.isSelected = true
         updateTimelapseStatus()
-        scheduleNextTimelapseShot(immediate = true)
+        captureNextTimelapseFrame()
     }
 
-    private fun scheduleNextTimelapseShot(immediate: Boolean = false) {
-        val delayMs = if (immediate) 0L else timelapseIntervalSeconds * 1000L
-        val runnable = Runnable {
-            if (!isTimelapseRunning) return@Runnable
-            takePhoto()
-            timelapseShotsTaken++
-            updateTimelapseStatus()
-            if (timelapseTotalShots == 0 || timelapseShotsTaken < timelapseTotalShots) {
-                scheduleNextTimelapseShot()
-            } else {
-                stopTimelapse()
-            }
+    /**
+     * Captura un único fotograma del timelapse. A diferencia de [takePhoto],
+     * este flujo SIEMPRE espera a que la captura asíncrona termine
+     * (onImageSaved/onError) antes de decidir si programa el siguiente
+     * fotograma o detiene la secuencia — así se evita generar el video antes
+     * de que el último archivo haya terminado de escribirse.
+     */
+    private fun captureNextTimelapseFrame() {
+        if (!isTimelapseRunning) return
+        val capture = imageCapture
+        val framesDir = timelapseFramesDir
+        if (capture == null || framesDir == null) {
+            stopTimelapse()
+            return
         }
+
+        timelapseCaptureInFlight = true
+        val photoFile = File(framesDir, "frame_${String.format(Locale.US, "%05d", timelapseShotsTaken)}.jpg")
+        val outputOptions = ImageCapture.OutputFileOptions.Builder(photoFile).build()
+
+        capture.takePicture(
+            outputOptions,
+            ContextCompat.getMainExecutor(this),
+            object : ImageCapture.OnImageSavedCallback {
+                override fun onError(exc: ImageCaptureException) {
+                    Log.e(TAG, "Error al capturar fotograma de timelapse", exc)
+                    onTimelapseFrameFinished()
+                }
+
+                override fun onImageSaved(output: ImageCapture.OutputFileResults) {
+                    onTimelapseFrameFinished()
+                }
+            }
+        )
+    }
+
+    private fun onTimelapseFrameFinished() {
+        timelapseCaptureInFlight = false
+        timelapseShotsTaken++
+        updateTimelapseStatus()
+
+        if (!isTimelapseRunning) {
+            // El usuario pidió detener mientras este fotograma se estaba
+            // guardando: recién ahora que terminó de escribirse se genera
+            // el video, así no se pierde el último fotograma.
+            buildTimelapseVideoFromFrames()
+            return
+        }
+
+        if (timelapseTotalShots != 0 && timelapseShotsTaken >= timelapseTotalShots) {
+            stopTimelapse()
+            return
+        }
+
+        val runnable = Runnable { captureNextTimelapseFrame() }
         timelapseRunnable = runnable
-        timelapseHandler.postDelayed(runnable, delayMs)
+        timelapseHandler.postDelayed(runnable, timelapseIntervalSeconds * 1000L)
     }
 
     private fun stopTimelapse() {
-        val wasRunning = isTimelapseRunning
+        if (!isTimelapseRunning) return
         isTimelapseRunning = false
         timelapseRunnable?.let { timelapseHandler.removeCallbacks(it) }
         timelapseRunnable = null
         binding.btnCapture.isSelected = false
-        if (wasRunning) {
+        updateTimelapseStatus()
+        // Si hay una captura en curso, es [onTimelapseFrameFinished] quien
+        // generará el video en cuanto esa foto termine de guardarse.
+        if (!timelapseCaptureInFlight) {
             buildTimelapseVideoFromFrames()
-        } else {
-            updateTimelapseStatus()
         }
     }
 
@@ -617,15 +678,17 @@ class MainActivity : AppCompatActivity() {
         if (frameFiles.isEmpty()) {
             framesDir?.deleteRecursively()
             binding.tvTimelapseStatus.text = getString(R.string.timelapse_no_frames)
+            binding.tvTimelapseDuration.text = getString(R.string.timelapse_duration_unknown)
             return
         }
 
         binding.tvTimelapseStatus.text = getString(R.string.timelapse_building_video, frameFiles.size)
 
+        val fpsUsed = timelapseVideoFps
         val videoFileName = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(System.currentTimeMillis())
         val outputVideo = File(outputDirectory, "ASTRA_TIMELAPSE_$videoFileName.mp4")
 
-        TimelapseVideoBuilder.buildVideoAsync(frameFiles, outputVideo, TIMELAPSE_VIDEO_FPS) { success ->
+        TimelapseVideoBuilder.buildVideoAsync(frameFiles, outputVideo, fpsUsed) { success ->
             framesDir?.deleteRecursively()
             if (isFinishing || isDestroyed) return@buildVideoAsync
 
@@ -635,6 +698,9 @@ class MainActivity : AppCompatActivity() {
                 getString(R.string.timelapse_video_error)
             }
             if (success) {
+                val seconds = frameFiles.size.toFloat() / fpsUsed
+                binding.tvTimelapseDuration.text =
+                    getString(R.string.timelapse_duration_estimate, formatTimelapseDuration(seconds))
                 Toast.makeText(this, getString(R.string.timelapse_video_saved), Toast.LENGTH_SHORT).show()
                 updateGalleryThumbnail()
             }
@@ -647,6 +713,36 @@ class MainActivity : AppCompatActivity() {
             getString(R.string.timelapse_status_running, timelapseShotsTaken, totalLabel)
         } else {
             getString(R.string.timelapse_status_idle)
+        }
+        binding.tvTimelapseDuration.text = estimatedTimelapseDurationLabel()
+    }
+
+    /**
+     * Duración estimada del .mp4 final:
+     * - Si hay un número de fotos definido (no infinito), se calcula sobre
+     *   ese total (antes y durante la captura).
+     * - Si es infinito, se calcula sobre las fotos ya tomadas mientras corre
+     *   la secuencia (va creciendo en vivo); en reposo no hay forma de
+     *   saberlo de antemano.
+     */
+    private fun estimatedTimelapseDurationLabel(): String {
+        val frameCount = when {
+            timelapseTotalShots > 0 -> timelapseTotalShots
+            isTimelapseRunning -> timelapseShotsTaken
+            else -> 0
+        }
+        if (frameCount <= 0) {
+            return getString(R.string.timelapse_duration_unknown)
+        }
+        val seconds = frameCount.toFloat() / timelapseVideoFps
+        return getString(R.string.timelapse_duration_estimate, formatTimelapseDuration(seconds))
+    }
+
+    private fun formatTimelapseDuration(seconds: Float): String {
+        return if (seconds < 60) {
+            String.format(Locale.US, "%.1f s", seconds)
+        } else {
+            String.format(Locale.US, "%d min %02d s", (seconds / 60).toInt(), (seconds % 60).toInt())
         }
     }
 
@@ -780,25 +876,15 @@ class MainActivity : AppCompatActivity() {
     private fun takePhoto() {
         val capture = imageCapture ?: return
 
-        // Durante el timelapse, los fotogramas son temporales: se guardan en
-        // la carpeta de caché (nunca en la galería) y siempre en JPEG, ya que
-        // se necesitan como bitmaps para construir el video final.
-        val isTimelapseFrame = currentMode == CameraMode.TIMELAPSE && isTimelapseRunning
-        val useRaw = rawEnabled && rawSupported && !isTimelapseFrame
+        val useRaw = rawEnabled && rawSupported
         val extension = if (useRaw) "dng" else "jpg"
-
-        val photoFile = if (isTimelapseFrame) {
-            val framesDir = timelapseFramesDir ?: return
-            File(framesDir, "frame_${String.format(Locale.US, "%05d", timelapseShotsTaken)}.jpg")
-        } else {
-            val fileName = SimpleDateFormat("yyyyMMdd_HHmmss_SSS", Locale.US).format(System.currentTimeMillis())
-            File(outputDirectory, "ASTRA_$fileName.$extension")
-        }
+        val fileName = SimpleDateFormat("yyyyMMdd_HHmmss_SSS", Locale.US).format(System.currentTimeMillis())
+        val photoFile = File(outputDirectory, "ASTRA_$fileName.$extension")
 
         // Si es una exposición larga de Astro, se muestra un overlay con el
         // tiempo restante mientras dura la captura física de la foto.
         val exposureNsForThisShot = astroExposureNs
-        val isLongExposure = !isTimelapseFrame && currentMode == CameraMode.ASTRO &&
+        val isLongExposure = currentMode == CameraMode.ASTRO &&
             exposureNsForThisShot != null && exposureNsForThisShot >= LONG_EXPOSURE_THRESHOLD_NS
         if (isLongExposure) {
             showCaptureProgressOverlay(exposureNsForThisShot!! / 1_000_000L)
@@ -813,14 +899,11 @@ class MainActivity : AppCompatActivity() {
                 override fun onError(exc: ImageCaptureException) {
                     Log.e(TAG, "Error al guardar la foto", exc)
                     if (isLongExposure) hideCaptureProgressOverlay()
-                    if (!isTimelapseFrame) {
-                        Toast.makeText(this@MainActivity, getString(R.string.photo_error), Toast.LENGTH_SHORT).show()
-                    }
+                    Toast.makeText(this@MainActivity, getString(R.string.photo_error), Toast.LENGTH_SHORT).show()
                 }
 
                 override fun onImageSaved(output: ImageCapture.OutputFileResults) {
                     if (isLongExposure) hideCaptureProgressOverlay()
-                    if (isTimelapseFrame) return
 
                     if (!useRaw && contrastValue != 0) {
                         ImageProcessing.applyContrast(photoFile, contrastValue)
@@ -974,11 +1057,6 @@ class MainActivity : AppCompatActivity() {
         // A partir de este tiempo de exposición se muestra el overlay de
         // progreso (exposiciones más cortas no lo necesitan).
         private const val LONG_EXPOSURE_THRESHOLD_NS = 1_000_000_000L // 1s
-
-        // Framerate de reproducción del video de timelapse generado. Es
-        // independiente del intervalo de captura (que puede ser de varios
-        // segundos entre fotos): un timelapse de 100 fotos a 10 fps dura 10s.
-        private const val TIMELAPSE_VIDEO_FPS = 10
 
         /**
          * Directorio propio de la app dentro del almacenamiento específico de la aplicación.

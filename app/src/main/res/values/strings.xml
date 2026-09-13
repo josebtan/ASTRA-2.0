@@ -36,7 +36,10 @@
     <string name="timelapse_interval_label">Intervalo entre fotos</string>
     <string name="timelapse_shots_label">Número de fotos</string>
     <string name="timelapse_shots_infinite">∞ (hasta detener)</string>
+    <string name="timelapse_fps_label">Velocidad del video (FPS)</string>
     <string name="timelapse_status_idle">Configura el intervalo y pulsa el disparador para empezar</string>
+    <string name="timelapse_duration_estimate">Video final estimado: %1$s</string>
+    <string name="timelapse_duration_unknown">Duración del video: depende de cuántas fotos tomes</string>
     <string name="timelapse_status_running">Capturando %1$d / %2$s</string>
     <string name="timelapse_note">Durante el timelapse, el botón de disparo inicia y detiene la secuencia. Mantén el teléfono estable o usa un trípode.</string>
 
