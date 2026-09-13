@@ -38,9 +38,9 @@
     <string name="timelapse_shots_infinite">∞ (hasta detener)</string>
     <string name="timelapse_fps_label">Velocidad del video (FPS)</string>
     <string name="timelapse_status_idle">Configura el intervalo y pulsa el disparador para empezar</string>
-    <string name="timelapse_duration_estimate">Video final estimado: %1$s</string>
-    <string name="timelapse_duration_unknown">Duración del video: depende de cuántas fotos tomes</string>
-    <string name="timelapse_status_running">Capturando %1$d / %2$s</string>
+    <string name="timelapse_status_running_hint">Grabando… mira el contador en la vista de cámara</string>
+    <string name="timelapse_info_shots">Foto %1$d</string>
+    <string name="timelapse_info_duration">Video: %1$s</string>
     <string name="timelapse_note">Durante el timelapse, el botón de disparo inicia y detiene la secuencia. Mantén el teléfono estable o usa un trípode.</string>
 
     <!-- Submenú Astrofotografía -->
@@ -55,6 +55,7 @@
     <!-- Video de timelapse -->
     <string name="timelapse_building_video">Generando video a partir de %1$d fotos…</string>
     <string name="timelapse_video_saved">Video guardado en la galería ✓</string>
+    <string name="timelapse_video_saved_with_duration">Video guardado ✓ (%1$s)</string>
     <string name="timelapse_video_error">Error al generar el video del timelapse</string>
     <string name="timelapse_no_frames">No se capturó ninguna foto</string>
 </resources>

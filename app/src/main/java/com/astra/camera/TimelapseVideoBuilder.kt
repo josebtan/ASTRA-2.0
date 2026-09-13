@@ -10,6 +10,7 @@ import android.media.MediaMuxer
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
+import android.util.Range
 import java.io.File
 
 /**
@@ -31,6 +32,13 @@ object TimelapseVideoBuilder {
     private const val BIT_RATE = 6_000_000
     private const val I_FRAME_INTERVAL = 1
     private const val DEQUEUE_TIMEOUT_US = 10_000L
+
+    // La foto de la cámara puede tener 12MP o más (p. ej. 4032x3024), una
+    // resolución que muchísimos encoders de hardware simplemente no soportan
+    // para video (a diferencia de fotos). Se limita el lado largo del video
+    // final a este valor, de sobra para un timelapse y compatible con
+    // prácticamente cualquier dispositivo Android.
+    private const val MAX_VIDEO_DIMENSION = 1280
 
     /**
      * Construye el video en un hilo secundario y notifica el resultado en el
@@ -58,21 +66,28 @@ object TimelapseVideoBuilder {
     private fun buildVideo(frameFiles: List<File>, outputFile: File, frameRate: Int) {
         require(frameFiles.isNotEmpty()) { "No hay fotogramas para generar el video" }
 
-        // Se usa el tamaño del primer fotograma como resolución del video;
-        // el resto se escala a este tamaño si por algún motivo difiere.
+        // Se usa el tamaño del primer fotograma para calcular la resolución
+        // del video, pero SIEMPRE escalada a un tamaño razonable para video
+        // (ver [MAX_VIDEO_DIMENSION]): usar la resolución completa de la
+        // foto (a menudo 12MP+) es la causa más común de que el encoder
+        // falle al configurarse en muchos dispositivos.
         val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
         BitmapFactory.decodeFile(frameFiles.first().absolutePath, bounds)
-        // El encoder H.264 requiere dimensiones pares.
-        val width = bounds.outWidth - (bounds.outWidth % 2)
-        val height = bounds.outHeight - (bounds.outHeight % 2)
-        require(width > 0 && height > 0) { "Resolución de fotograma inválida" }
+        require(bounds.outWidth > 0 && bounds.outHeight > 0) { "Resolución de fotograma inválida" }
 
-        val colorFormat = selectColorFormat()
+        val codecInfo = MediaCodecList(MediaCodecList.REGULAR_CODECS).codecInfos
+            .firstOrNull { info -> info.isEncoder && info.supportedTypes.any { it.equals(MIME_TYPE, ignoreCase = true) } }
+            ?: throw IllegalStateException("El dispositivo no tiene un encoder H.264 disponible")
+        val videoCapabilities = codecInfo.getCapabilitiesForType(MIME_TYPE).videoCapabilities
+
+        val (width, height) = resolveEncodeSize(bounds.outWidth, bounds.outHeight, videoCapabilities)
+        val colorFormat = selectColorFormat(codecInfo)
+        val safeFrameRate = clampFrameRate(frameRate, width, height, videoCapabilities)
 
         val format = MediaFormat.createVideoFormat(MIME_TYPE, width, height).apply {
             setInteger(MediaFormat.KEY_COLOR_FORMAT, colorFormat)
             setInteger(MediaFormat.KEY_BIT_RATE, BIT_RATE)
-            setInteger(MediaFormat.KEY_FRAME_RATE, frameRate)
+            setInteger(MediaFormat.KEY_FRAME_RATE, safeFrameRate)
             setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, I_FRAME_INTERVAL)
         }
 
@@ -84,7 +99,7 @@ object TimelapseVideoBuilder {
         var trackIndex = -1
         var muxerStarted = false
         val bufferInfo = MediaCodec.BufferInfo()
-        val frameDurationUs = 1_000_000L / frameRate
+        val frameDurationUs = 1_000_000L / safeFrameRate
         var presentationTimeUs = 0L
 
         fun drainEncoder(endOfStream: Boolean) {
@@ -146,11 +161,72 @@ object TimelapseVideoBuilder {
         }
     }
 
+    /**
+     * Calcula la resolución final del video: escala la foto original para
+     * que su lado largo no supere [MAX_VIDEO_DIMENSION] (manteniendo la
+     * proporción), redondea a múltiplos de 16 (alineación de macrobloque
+     * que casi todos los encoders de hardware requieren) y, si el encoder
+     * expone sus capacidades reales, ajusta el resultado a un tamaño que
+     * el propio dispositivo confirme como soportado.
+     */
+    private fun resolveEncodeSize(
+        originalWidth: Int,
+        originalHeight: Int,
+        capabilities: MediaCodecInfo.VideoCapabilities?
+    ): Pair<Int, Int> {
+        val scale = MAX_VIDEO_DIMENSION.toFloat() / maxOf(originalWidth, originalHeight)
+        val targetWidth = if (scale < 1f) (originalWidth * scale).toInt() else originalWidth
+        val targetHeight = if (scale < 1f) (originalHeight * scale).toInt() else originalHeight
+
+        var width = alignTo16(targetWidth)
+        var height = alignTo16(targetHeight)
+
+        if (capabilities != null) {
+            width = capabilities.supportedWidths.clamp(width)
+            height = capabilities.supportedHeights.clamp(height)
+            width = alignTo16(width)
+            height = alignTo16(height)
+            // Si aun así el par (width, height) no es válido para este
+            // encoder en particular, se reduce gradualmente hasta que lo sea.
+            var attempts = 0
+            while (!capabilities.isSizeSupported(width, height) && attempts < 6) {
+                width = alignTo16((width * 0.85f).toInt())
+                height = alignTo16((height * 0.85f).toInt())
+                attempts++
+            }
+        }
+
+        return Pair(width.coerceAtLeast(16), height.coerceAtLeast(16))
+    }
+
+    private fun alignTo16(value: Int): Int = (value / 16).coerceAtLeast(1) * 16
+
+    private fun Range<Int>.clamp(value: Int): Int = value.coerceIn(lower, upper)
+
+    /**
+     * Ajusta el framerate elegido por el usuario al rango que el encoder
+     * realmente soporta para la resolución final calculada. Si no se puede
+     * consultar (algunos dispositivos no lo exponen para todos los tamaños),
+     * se deja el valor original tal cual.
+     */
+    private fun clampFrameRate(
+        requestedFps: Int,
+        width: Int,
+        height: Int,
+        capabilities: MediaCodecInfo.VideoCapabilities?
+    ): Int {
+        if (capabilities == null) return requestedFps
+        return try {
+            val range: Range<Double> = capabilities.getSupportedFrameRatesFor(width, height)
+            requestedFps.toDouble().coerceIn(range.lower, range.upper).toInt().coerceAtLeast(1)
+        } catch (e: IllegalArgumentException) {
+            requestedFps
+        }
+    }
+
     /** Elige un formato de color YUV420 soportado por el codificador H.264 del dispositivo. */
-    private fun selectColorFormat(): Int {
-        val codecInfo = MediaCodecList(MediaCodecList.REGULAR_CODECS).codecInfos
-            .firstOrNull { info -> info.isEncoder && info.supportedTypes.any { it.equals(MIME_TYPE, ignoreCase = true) } }
-        val supported = codecInfo?.getCapabilitiesForType(MIME_TYPE)?.colorFormats ?: intArrayOf()
+    private fun selectColorFormat(codecInfo: MediaCodecInfo): Int {
+        val supported = codecInfo.getCapabilitiesForType(MIME_TYPE)?.colorFormats ?: intArrayOf()
         return when {
             supported.contains(MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420Planar) ->
                 MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420Planar

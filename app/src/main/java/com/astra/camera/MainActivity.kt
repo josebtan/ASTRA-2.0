@@ -584,6 +584,8 @@ class MainActivity : AppCompatActivity() {
         timelapseCaptureInFlight = false
         timelapseShotsTaken = 0
         binding.btnCapture.isSelected = true
+        binding.timelapseInfoPill.visibility = View.VISIBLE
+        updateTimelapseInfoPill()
         updateTimelapseStatus()
         captureNextTimelapseFrame()
     }
@@ -627,7 +629,7 @@ class MainActivity : AppCompatActivity() {
     private fun onTimelapseFrameFinished() {
         timelapseCaptureInFlight = false
         timelapseShotsTaken++
-        updateTimelapseStatus()
+        updateTimelapseInfoPill()
 
         if (!isTimelapseRunning) {
             // El usuario pidió detener mientras este fotograma se estaba
@@ -653,6 +655,7 @@ class MainActivity : AppCompatActivity() {
         timelapseRunnable?.let { timelapseHandler.removeCallbacks(it) }
         timelapseRunnable = null
         binding.btnCapture.isSelected = false
+        binding.timelapseInfoPill.visibility = View.GONE
         updateTimelapseStatus()
         // Si hay una captura en curso, es [onTimelapseFrameFinished] quien
         // generará el video en cuanto esa foto termine de guardarse.
@@ -678,7 +681,6 @@ class MainActivity : AppCompatActivity() {
         if (frameFiles.isEmpty()) {
             framesDir?.deleteRecursively()
             binding.tvTimelapseStatus.text = getString(R.string.timelapse_no_frames)
-            binding.tvTimelapseDuration.text = getString(R.string.timelapse_duration_unknown)
             return
         }
 
@@ -692,50 +694,39 @@ class MainActivity : AppCompatActivity() {
             framesDir?.deleteRecursively()
             if (isFinishing || isDestroyed) return@buildVideoAsync
 
-            binding.tvTimelapseStatus.text = if (success) {
-                getString(R.string.timelapse_video_saved)
-            } else {
-                getString(R.string.timelapse_video_error)
-            }
             if (success) {
                 val seconds = frameFiles.size.toFloat() / fpsUsed
-                binding.tvTimelapseDuration.text =
-                    getString(R.string.timelapse_duration_estimate, formatTimelapseDuration(seconds))
-                Toast.makeText(this, getString(R.string.timelapse_video_saved), Toast.LENGTH_SHORT).show()
+                val message = getString(R.string.timelapse_video_saved_with_duration, formatTimelapseDuration(seconds))
+                binding.tvTimelapseStatus.text = message
+                Toast.makeText(this, message, Toast.LENGTH_LONG).show()
                 updateGalleryThumbnail()
+            } else {
+                binding.tvTimelapseStatus.text = getString(R.string.timelapse_video_error)
+                Toast.makeText(this, getString(R.string.timelapse_video_error), Toast.LENGTH_LONG).show()
             }
         }
     }
 
     private fun updateTimelapseStatus() {
         binding.tvTimelapseStatus.text = if (isTimelapseRunning) {
-            val totalLabel = if (timelapseTotalShots == 0) "∞" else timelapseTotalShots.toString()
-            getString(R.string.timelapse_status_running, timelapseShotsTaken, totalLabel)
+            getString(R.string.timelapse_status_running_hint)
         } else {
             getString(R.string.timelapse_status_idle)
         }
-        binding.tvTimelapseDuration.text = estimatedTimelapseDurationLabel()
     }
 
     /**
-     * Duración estimada del .mp4 final:
-     * - Si hay un número de fotos definido (no infinito), se calcula sobre
-     *   ese total (antes y durante la captura).
-     * - Si es infinito, se calcula sobre las fotos ya tomadas mientras corre
-     *   la secuencia (va creciendo en vivo); en reposo no hay forma de
-     *   saberlo de antemano.
+     * Actualiza el "pill" que flota sobre la previsualización de cámara
+     * mientras el timelapse está grabando: cuántas fotos van y la duración
+     * estimada del video final (se recalcula en vivo con cada fotograma).
      */
-    private fun estimatedTimelapseDurationLabel(): String {
-        val frameCount = when {
-            timelapseTotalShots > 0 -> timelapseTotalShots
-            isTimelapseRunning -> timelapseShotsTaken
-            else -> 0
-        }
-        if (frameCount <= 0) {
-            return getString(R.string.timelapse_duration_unknown)
-        }
-        val seconds = frameCount.toFloat() / timelapseVideoFps
-        return getString(R.string.timelapse_duration_estimate, formatTimelapseDuration(seconds))
+    private fun updateTimelapseInfoPill() {
+        binding.tvTimelapseInfoShots.text = getString(R.string.timelapse_info_shots, timelapseShotsTaken)
+
+        val frameCountForDuration = if (timelapseTotalShots > 0) timelapseTotalShots else timelapseShotsTaken
+        val seconds = frameCountForDuration.toFloat() / timelapseVideoFps
+        binding.tvTimelapseInfoDuration.text =
+            getString(R.string.timelapse_info_duration, formatTimelapseDuration(seconds))
     }
 
     private fun formatTimelapseDuration(seconds: Float): String {

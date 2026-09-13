@@ -567,15 +567,6 @@
                     android:textStyle="bold" />
 
                 <TextView
-                    android:id="@+id/tvTimelapseDuration"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="2dp"
-                    android:text="@string/timelapse_duration_unknown"
-                    android:textColor="@color/astra_white"
-                    android:textSize="12sp" />
-
-                <TextView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="6dp"
@@ -844,6 +835,60 @@
             android:text="@string/capture_long_exposure_label"
             android:textColor="@color/astra_gray"
             android:textSize="12sp" />
+
+    </LinearLayout>
+
+    <!-- Info en vivo del timelapse (fotos tomadas + duración estimada del
+         video final): flota sobre la previsualización mientras se captura,
+         no dentro del menú de configuración. -->
+    <LinearLayout
+        android:id="@+id/timelapseInfoPill"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:background="@drawable/bg_chip_button"
+        android:paddingHorizontal="14dp"
+        android:paddingVertical="6dp"
+        android:visibility="gone"
+        app:layout_constraintBottom_toTopOf="@id/bottomBar"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        android:layout_marginBottom="12dp"
+        tools:visibility="visible">
+
+        <View
+            android:layout_width="8dp"
+            android:layout_height="8dp"
+            android:background="@drawable/bg_recording_dot" />
+
+        <TextView
+            android:id="@+id/tvTimelapseInfoShots"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:textColor="@color/astra_white"
+            android:textStyle="bold"
+            android:textSize="13sp"
+            tools:text="Foto 12" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:text="·"
+            android:textColor="@color/astra_gray"
+            android:textSize="13sp" />
+
+        <TextView
+            android:id="@+id/tvTimelapseInfoDuration"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:textColor="@color/astra_accent"
+            android:textStyle="bold"
+            android:textSize="13sp"
+            tools:text="Video: 1.2 s" />
 
     </LinearLayout>
 
