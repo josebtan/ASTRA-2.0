@@ -835,7 +835,8 @@ class MainActivity : AppCompatActivity() {
     // --- Overlay de progreso para exposiciones largas (Astro) ---
 
     private fun showCaptureProgressOverlay(durationMs: Long) {
-        binding.overlayCapture.visibility = View.VISIBLE
+        binding.progressCapture.visibility = View.VISIBLE
+        binding.captureCountdownPill.visibility = View.VISIBLE
         binding.progressCapture.isIndeterminate = false
         binding.progressCapture.max = 1000
         binding.progressCapture.progress = 0
@@ -863,7 +864,8 @@ class MainActivity : AppCompatActivity() {
     private fun hideCaptureProgressOverlay() {
         captureProgressTimer?.cancel()
         captureProgressTimer = null
-        binding.overlayCapture.visibility = View.GONE
+        binding.progressCapture.visibility = View.GONE
+        binding.captureCountdownPill.visibility = View.GONE
     }
 
     private fun updateGalleryThumbnail() {
