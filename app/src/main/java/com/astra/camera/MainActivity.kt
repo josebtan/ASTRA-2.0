@@ -22,6 +22,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.camera.camera2.interop.Camera2CameraControl
 import androidx.camera.camera2.interop.Camera2CameraInfo
+import androidx.camera.camera2.interop.Camera2Interop
 import androidx.camera.camera2.interop.CaptureRequestOptions
 import androidx.camera.camera2.interop.ExperimentalCamera2Interop
 import androidx.camera.core.Camera
@@ -185,6 +186,15 @@ class MainActivity : AppCompatActivity() {
             .setCaptureMode(captureMode)
             .setTargetRotation(currentRotation)
 
+        // La exposición larga de Astro se aplica SOLO a la foto final (vía
+        // Camera2Interop, a nivel del propio ImageCapture), nunca a la sesión
+        // completa: si se aplicara a la vista previa, esta quedaría limitada
+        // al mismo framerate que la exposición (ej. 1 frame cada 10s),
+        // haciendo que la app entera se sienta lenta o congelada.
+        if (currentMode == CameraMode.ASTRO) {
+            applyAstroCaptureExtender(captureBuilder)
+        }
+
         val cameraSelector = CameraSelector.Builder()
             .requireLensFacing(lensFacing)
             .build()
@@ -242,44 +252,57 @@ class MainActivity : AppCompatActivity() {
         refreshAstroSeekBarBounds()
     }
 
+    /**
+     * Aplica ISO manual (modo Manual) a la sesión de cámara completa —incluida
+     * la vista previa—, ya que su tiempo de exposición es corto (1/100s) y no
+     * afecta al framerate del preview. El modo Astro NO se aplica aquí: usa su
+     * propio mecanismo (ver [applyAstroCaptureExtender]) para no ralentizar
+     * la vista previa con su exposición larga.
+     */
     @OptIn(ExperimentalCamera2Interop::class)
     private fun applyManualCaptureOptions() {
         val cam = camera ?: return
         val camera2Control = Camera2CameraControl.from(cam.cameraControl)
 
-        val options = when {
-            // Astrofotografía: ISO alto + exposición larga, con reducción de
-            // ruido configurable. Tiene prioridad sobre el modo Manual.
-            currentMode == CameraMode.ASTRO && manualSensorSupported &&
-                astroIso != null && astroExposureNs != null -> {
-                CaptureRequestOptions.Builder()
-                    .setCaptureRequestOption(CaptureRequest.CONTROL_AE_MODE, CaptureRequest.CONTROL_AE_MODE_OFF)
-                    .setCaptureRequestOption(CaptureRequest.SENSOR_SENSITIVITY, astroIso)
-                    .setCaptureRequestOption(CaptureRequest.SENSOR_EXPOSURE_TIME, astroExposureNs)
-                    .setCaptureRequestOption(
-                        CaptureRequest.NOISE_REDUCTION_MODE,
-                        if (astroNoiseReductionOff) {
-                            CaptureRequest.NOISE_REDUCTION_MODE_OFF
-                        } else {
-                            CaptureRequest.NOISE_REDUCTION_MODE_HIGH_QUALITY
-                        }
-                    )
-                    .build()
-            }
-            manualIso != null && manualSensorSupported -> {
-                CaptureRequestOptions.Builder()
-                    .setCaptureRequestOption(CaptureRequest.CONTROL_AE_MODE, CaptureRequest.CONTROL_AE_MODE_OFF)
-                    .setCaptureRequestOption(CaptureRequest.SENSOR_SENSITIVITY, manualIso)
-                    .setCaptureRequestOption(CaptureRequest.SENSOR_EXPOSURE_TIME, DEFAULT_EXPOSURE_TIME_NS)
-                    .build()
-            }
-            else -> {
-                CaptureRequestOptions.Builder()
-                    .setCaptureRequestOption(CaptureRequest.CONTROL_AE_MODE, CaptureRequest.CONTROL_AE_MODE_ON)
-                    .build()
-            }
+        val options = if (currentMode == CameraMode.MANUAL && manualIso != null && manualSensorSupported) {
+            CaptureRequestOptions.Builder()
+                .setCaptureRequestOption(CaptureRequest.CONTROL_AE_MODE, CaptureRequest.CONTROL_AE_MODE_OFF)
+                .setCaptureRequestOption(CaptureRequest.SENSOR_SENSITIVITY, manualIso)
+                .setCaptureRequestOption(CaptureRequest.SENSOR_EXPOSURE_TIME, DEFAULT_EXPOSURE_TIME_NS)
+                .build()
+        } else {
+            CaptureRequestOptions.Builder()
+                .setCaptureRequestOption(CaptureRequest.CONTROL_AE_MODE, CaptureRequest.CONTROL_AE_MODE_ON)
+                .build()
         }
         camera2Control.setCaptureRequestOptions(options)
+    }
+
+    /**
+     * Aplica ISO alto + exposición larga únicamente a las peticiones de
+     * captura de foto de [ImageCapture] (vía Camera2Interop.Extender sobre su
+     * propio builder), no a la sesión de cámara completa. Así la vista previa
+     * sigue en automático y fluida, y solo la foto final usa la exposición
+     * larga configurada en el submenú de Astrofotografía.
+     */
+    @OptIn(ExperimentalCamera2Interop::class)
+    private fun applyAstroCaptureExtender(builder: ImageCapture.Builder) {
+        if (!manualSensorSupported) return
+        val iso = astroIso ?: return
+        val exposureNs = astroExposureNs ?: return
+
+        val extender = Camera2Interop.Extender(builder)
+        extender.setCaptureRequestOption(CaptureRequest.CONTROL_AE_MODE, CaptureRequest.CONTROL_AE_MODE_OFF)
+        extender.setCaptureRequestOption(CaptureRequest.SENSOR_SENSITIVITY, iso)
+        extender.setCaptureRequestOption(CaptureRequest.SENSOR_EXPOSURE_TIME, exposureNs)
+        extender.setCaptureRequestOption(
+            CaptureRequest.NOISE_REDUCTION_MODE,
+            if (astroNoiseReductionOff) {
+                CaptureRequest.NOISE_REDUCTION_MODE_OFF
+            } else {
+                CaptureRequest.NOISE_REDUCTION_MODE_HIGH_QUALITY
+            }
+        )
     }
 
     private fun applyExposure() {
@@ -584,13 +607,17 @@ class MainActivity : AppCompatActivity() {
                 }
                 val iso = range.lower + progress
                 binding.tvAstroIso.text = iso.toString()
-                if (!fromUser) return
-                astroIso = iso
-                if (currentMode == CameraMode.ASTRO) applyManualCaptureOptions()
+                if (fromUser) astroIso = iso
             }
 
             override fun onStartTrackingTouch(seekBar: SeekBar) = Unit
-            override fun onStopTrackingTouch(seekBar: SeekBar) = Unit
+
+            // Solo se reenlaza la cámara al soltar el dedo (no en cada tick):
+            // reenlazar en cada onProgressChanged sería lo que originalmente
+            // causaba que la app se sintiera lenta mientras se arrastraba.
+            override fun onStopTrackingTouch(seekBar: SeekBar) {
+                if (currentMode == CameraMode.ASTRO) bindCameraUseCases()
+            }
         })
 
         binding.seekAstroExposure.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
@@ -602,20 +629,21 @@ class MainActivity : AppCompatActivity() {
                 }
                 val exposureNs = range.lower + progress * ASTRO_EXPOSURE_STEP_NS
                 binding.tvAstroExposure.text = formatExposureSeconds(exposureNs)
-                if (!fromUser) return
-                astroExposureNs = exposureNs
-                if (currentMode == CameraMode.ASTRO) applyManualCaptureOptions()
+                if (fromUser) astroExposureNs = exposureNs
             }
 
             override fun onStartTrackingTouch(seekBar: SeekBar) = Unit
-            override fun onStopTrackingTouch(seekBar: SeekBar) = Unit
+
+            override fun onStopTrackingTouch(seekBar: SeekBar) {
+                if (currentMode == CameraMode.ASTRO) bindCameraUseCases()
+            }
         })
 
         binding.switchAstroNoiseReduction.setOnCheckedChangeListener { _, isChecked ->
             // El switch representa "reducción de ruido activada"; internamente
             // astroNoiseReductionOff indica si hay que desactivarla (invertido).
             astroNoiseReductionOff = !isChecked
-            if (currentMode == CameraMode.ASTRO) applyManualCaptureOptions()
+            if (currentMode == CameraMode.ASTRO) bindCameraUseCases()
         }
     }
 
@@ -771,12 +799,17 @@ class MainActivity : AppCompatActivity() {
      * Rota visualmente los controles (sin recomponer el layout) para que se
      * mantengan legibles sin importar si el teléfono está en vertical (arriba,
      * abajo) o en horizontal (hacia la izquierda o hacia la derecha).
+     *
+     * `Surface.ROTATION_*` representa la rotación aplicada por el sistema para
+     * compensar el giro físico del teléfono, en dirección opuesta a dicho giro.
+     * Por eso los controles deben rotar en la MISMA dirección que esa
+     * compensación (no en la contraria) para verse derechos al usuario.
      */
     private fun rotateControls(rotation: Int) {
         val degrees = when (rotation) {
-            Surface.ROTATION_90 -> -90f
+            Surface.ROTATION_90 -> 90f
             Surface.ROTATION_180 -> 180f
-            Surface.ROTATION_270 -> 90f
+            Surface.ROTATION_270 -> -90f
             else -> 0f
         }
 

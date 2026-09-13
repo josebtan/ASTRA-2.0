@@ -6,11 +6,10 @@
     android:layout_height="match_parent"
     android:background="@color/astra_black">
 
-    <ImageView
+    <com.astra.camera.ZoomableImageView
         android:id="@+id/imageView"
         android:layout_width="0dp"
         android:layout_height="0dp"
-        android:scaleType="fitCenter"
         android:contentDescription="@null"
         app:layout_constraintTop_toTopOf="parent"
         app:layout_constraintBottom_toBottomOf="parent"

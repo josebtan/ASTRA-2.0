@@ -29,10 +29,11 @@ class ImageViewerDialog(
         setContentView(binding.root)
 
         if (file.extension.equals("dng", ignoreCase = true)) {
+            binding.imageView.zoomEnabled = false
             binding.imageView.setImageResource(R.drawable.ic_manual)
-            binding.imageView.scaleType = android.widget.ImageView.ScaleType.CENTER_INSIDE
             binding.tvRawNote.visibility = android.view.View.VISIBLE
         } else {
+            binding.imageView.zoomEnabled = true
             binding.imageView.setImageURI(Uri.fromFile(file))
         }
 

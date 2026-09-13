@@ -44,6 +44,6 @@
     <string name="astro_iso_label">ISO</string>
     <string name="astro_exposure_label">Tiempo de exposición</string>
     <string name="astro_noise_reduction_label">Reducción de ruido</string>
-    <string name="astro_note">Recomendado usar trípode. La exposición larga hace que la captura tarde varios segundos en completarse.</string>
+    <string name="astro_note">Recomendado usar trípode. La vista previa se mantiene fluida; solo la foto final usa la exposición larga configurada, por lo que puede tardar varios segundos en completarse.</string>
     <string name="astro_not_supported">Este dispositivo no soporta exposición manual larga; se usará el modo automático</string>
 </resources>
