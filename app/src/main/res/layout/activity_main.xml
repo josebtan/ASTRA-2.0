@@ -747,4 +747,48 @@
 
     </androidx.constraintlayout.widget.ConstraintLayout>
 
+    <!-- Overlay de progreso durante una captura de exposición larga (Astro) -->
+    <LinearLayout
+        android:id="@+id/overlayCapture"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:gravity="center"
+        android:background="@drawable/bg_modes_panel"
+        android:padding="28dp"
+        android:visibility="gone"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        tools:visibility="visible">
+
+        <com.google.android.material.progressindicator.CircularProgressIndicator
+            android:id="@+id/progressCapture"
+            android:layout_width="64dp"
+            android:layout_height="64dp"
+            app:indicatorColor="@color/astra_accent"
+            app:trackColor="#33FFFFFF"
+            app:trackThickness="4dp" />
+
+        <TextView
+            android:id="@+id/tvCaptureCountdown"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="14dp"
+            android:textColor="@color/astra_white"
+            android:textStyle="bold"
+            android:textSize="18sp"
+            tools:text="4.0 s" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:text="@string/capture_long_exposure_label"
+            android:textColor="@color/astra_gray"
+            android:textSize="12sp" />
+
+    </LinearLayout>
+
 </androidx.constraintlayout.widget.ConstraintLayout>

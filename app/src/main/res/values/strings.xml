@@ -46,4 +46,12 @@
     <string name="astro_noise_reduction_label">Reducción de ruido</string>
     <string name="astro_note">Recomendado usar trípode. La vista previa se mantiene fluida; solo la foto final usa la exposición larga configurada, por lo que puede tardar varios segundos en completarse.</string>
     <string name="astro_not_supported">Este dispositivo no soporta exposición manual larga; se usará el modo automático</string>
+    <string name="capture_long_exposure_label">Exposición larga en curso…</string>
+    <string name="capture_processing">Procesando…</string>
+
+    <!-- Video de timelapse -->
+    <string name="timelapse_building_video">Generando video a partir de %1$d fotos…</string>
+    <string name="timelapse_video_saved">Video guardado en la galería ✓</string>
+    <string name="timelapse_video_error">Error al generar el video del timelapse</string>
+    <string name="timelapse_no_frames">No se capturó ninguna foto</string>
 </resources>

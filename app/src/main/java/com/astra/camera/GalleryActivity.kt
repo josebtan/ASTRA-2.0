@@ -35,7 +35,8 @@ class GalleryActivity : AppCompatActivity() {
         val images = outputDirectory.listFiles()
             ?.filter {
                 it.extension.equals("jpg", ignoreCase = true) ||
-                    it.extension.equals("dng", ignoreCase = true)
+                    it.extension.equals("dng", ignoreCase = true) ||
+                    it.extension.equals("mp4", ignoreCase = true)
             }
             ?.sortedByDescending { it.lastModified() }
             ?: emptyList()
@@ -58,13 +59,19 @@ class GalleryActivity : AppCompatActivity() {
             binding.recyclerView.addItemDecoration(GridSpacingItemDecoration(spanCount, spacingPx))
         }
         binding.recyclerView.adapter = GalleryAdapter(images) { file ->
-            showImageViewer(file)
+            showMedia(file)
         }
     }
 
-    private fun showImageViewer(file: File) {
-        ImageViewerDialog(this, file) {
-            loadImages()
-        }.show()
+    private fun showMedia(file: File) {
+        if (file.extension.equals("mp4", ignoreCase = true)) {
+            VideoViewerDialog(this, file) {
+                loadImages()
+            }.show()
+        } else {
+            ImageViewerDialog(this, file) {
+                loadImages()
+            }.show()
+        }
     }
 }

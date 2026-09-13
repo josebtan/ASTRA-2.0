@@ -12,4 +12,13 @@
         android:background="@color/astra_surface"
         android:contentDescription="@null" />
 
+    <ImageView
+        android:id="@+id/ivPlayOverlay"
+        android:layout_width="32dp"
+        android:layout_height="32dp"
+        android:layout_gravity="center"
+        android:src="@drawable/ic_play_overlay"
+        android:visibility="gone"
+        android:contentDescription="@null" />
+
 </FrameLayout>

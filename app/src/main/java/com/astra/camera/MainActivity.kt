@@ -88,6 +88,12 @@ class MainActivity : AppCompatActivity() {
     private var isTimelapseRunning = false
     private val timelapseHandler = Handler(Looper.getMainLooper())
     private var timelapseRunnable: Runnable? = null
+    // Carpeta temporal (caché de la app) donde se guardan los fotogramas de la
+    // sesión de timelapse en curso, antes de convertirlos en un único video.
+    private var timelapseFramesDir: File? = null
+
+    // --- Overlay de progreso para capturas de exposición larga (Astro) ---
+    private var captureProgressTimer: CountDownTimer? = null
 
     // --- Capacidades del sensor (dependen de la cámara frontal/trasera activa) ---
     private var isoRange: Range<Int>? = null
@@ -554,6 +560,9 @@ class MainActivity : AppCompatActivity() {
 
     private fun startTimelapse() {
         if (imageCapture == null) return
+        // Carpeta temporal en la caché de la app (no visible en la galería):
+        // los fotogramas se guardan aquí y se borran en cuanto se genera el video.
+        timelapseFramesDir = File(cacheDir, "astra_timelapse_${System.currentTimeMillis()}").apply { mkdirs() }
         isTimelapseRunning = true
         timelapseShotsTaken = 0
         binding.btnCapture.isSelected = true
@@ -579,11 +588,57 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun stopTimelapse() {
+        val wasRunning = isTimelapseRunning
         isTimelapseRunning = false
         timelapseRunnable?.let { timelapseHandler.removeCallbacks(it) }
         timelapseRunnable = null
         binding.btnCapture.isSelected = false
-        updateTimelapseStatus()
+        if (wasRunning) {
+            buildTimelapseVideoFromFrames()
+        } else {
+            updateTimelapseStatus()
+        }
+    }
+
+    /**
+     * Toma todos los fotogramas guardados en la carpeta temporal de la sesión
+     * de timelapse que acaba de terminar, los convierte en un único video
+     * (.mp4) y lo guarda en la galería de la app. La carpeta temporal se
+     * elimina al terminar, haya tenido éxito o no.
+     */
+    private fun buildTimelapseVideoFromFrames() {
+        val framesDir = timelapseFramesDir
+        timelapseFramesDir = null
+
+        val frameFiles = framesDir?.listFiles { f -> f.extension.equals("jpg", ignoreCase = true) }
+            ?.sortedBy { it.name }
+            ?: emptyList()
+
+        if (frameFiles.isEmpty()) {
+            framesDir?.deleteRecursively()
+            binding.tvTimelapseStatus.text = getString(R.string.timelapse_no_frames)
+            return
+        }
+
+        binding.tvTimelapseStatus.text = getString(R.string.timelapse_building_video, frameFiles.size)
+
+        val videoFileName = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(System.currentTimeMillis())
+        val outputVideo = File(outputDirectory, "ASTRA_TIMELAPSE_$videoFileName.mp4")
+
+        TimelapseVideoBuilder.buildVideoAsync(frameFiles, outputVideo, TIMELAPSE_VIDEO_FPS) { success ->
+            framesDir?.deleteRecursively()
+            if (isFinishing || isDestroyed) return@buildVideoAsync
+
+            binding.tvTimelapseStatus.text = if (success) {
+                getString(R.string.timelapse_video_saved)
+            } else {
+                getString(R.string.timelapse_video_error)
+            }
+            if (success) {
+                Toast.makeText(this, getString(R.string.timelapse_video_saved), Toast.LENGTH_SHORT).show()
+                updateGalleryThumbnail()
+            }
+        }
     }
 
     private fun updateTimelapseStatus() {
@@ -725,10 +780,29 @@ class MainActivity : AppCompatActivity() {
     private fun takePhoto() {
         val capture = imageCapture ?: return
 
-        val fileName = SimpleDateFormat("yyyyMMdd_HHmmss_SSS", Locale.US).format(System.currentTimeMillis())
-        val extension = if (rawEnabled && rawSupported) "dng" else "jpg"
-        val photoFile = File(outputDirectory, "ASTRA_$fileName.$extension")
-        val isRawCapture = extension == "dng"
+        // Durante el timelapse, los fotogramas son temporales: se guardan en
+        // la carpeta de caché (nunca en la galería) y siempre en JPEG, ya que
+        // se necesitan como bitmaps para construir el video final.
+        val isTimelapseFrame = currentMode == CameraMode.TIMELAPSE && isTimelapseRunning
+        val useRaw = rawEnabled && rawSupported && !isTimelapseFrame
+        val extension = if (useRaw) "dng" else "jpg"
+
+        val photoFile = if (isTimelapseFrame) {
+            val framesDir = timelapseFramesDir ?: return
+            File(framesDir, "frame_${String.format(Locale.US, "%05d", timelapseShotsTaken)}.jpg")
+        } else {
+            val fileName = SimpleDateFormat("yyyyMMdd_HHmmss_SSS", Locale.US).format(System.currentTimeMillis())
+            File(outputDirectory, "ASTRA_$fileName.$extension")
+        }
+
+        // Si es una exposición larga de Astro, se muestra un overlay con el
+        // tiempo restante mientras dura la captura física de la foto.
+        val exposureNsForThisShot = astroExposureNs
+        val isLongExposure = !isTimelapseFrame && currentMode == CameraMode.ASTRO &&
+            exposureNsForThisShot != null && exposureNsForThisShot >= LONG_EXPOSURE_THRESHOLD_NS
+        if (isLongExposure) {
+            showCaptureProgressOverlay(exposureNsForThisShot!! / 1_000_000L)
+        }
 
         val outputOptions = ImageCapture.OutputFileOptions.Builder(photoFile).build()
 
@@ -738,34 +812,80 @@ class MainActivity : AppCompatActivity() {
             object : ImageCapture.OnImageSavedCallback {
                 override fun onError(exc: ImageCaptureException) {
                     Log.e(TAG, "Error al guardar la foto", exc)
-                    Toast.makeText(this@MainActivity, getString(R.string.photo_error), Toast.LENGTH_SHORT).show()
+                    if (isLongExposure) hideCaptureProgressOverlay()
+                    if (!isTimelapseFrame) {
+                        Toast.makeText(this@MainActivity, getString(R.string.photo_error), Toast.LENGTH_SHORT).show()
+                    }
                 }
 
                 override fun onImageSaved(output: ImageCapture.OutputFileResults) {
-                    if (!isRawCapture && contrastValue != 0) {
+                    if (isLongExposure) hideCaptureProgressOverlay()
+                    if (isTimelapseFrame) return
+
+                    if (!useRaw && contrastValue != 0) {
                         ImageProcessing.applyContrast(photoFile, contrastValue)
                     }
-                    if (!isTimelapseRunning) {
-                        Toast.makeText(this@MainActivity, getString(R.string.photo_saved), Toast.LENGTH_SHORT).show()
-                    }
+                    Toast.makeText(this@MainActivity, getString(R.string.photo_saved), Toast.LENGTH_SHORT).show()
                     updateGalleryThumbnail()
                 }
             }
         )
     }
 
+    // --- Overlay de progreso para exposiciones largas (Astro) ---
+
+    private fun showCaptureProgressOverlay(durationMs: Long) {
+        binding.overlayCapture.visibility = View.VISIBLE
+        binding.progressCapture.isIndeterminate = false
+        binding.progressCapture.max = 1000
+        binding.progressCapture.progress = 0
+        binding.tvCaptureCountdown.text = formatExposureSeconds(durationMs * 1_000_000L)
+
+        captureProgressTimer?.cancel()
+        captureProgressTimer = object : CountDownTimer(durationMs, 100L) {
+            override fun onTick(millisUntilFinished: Long) {
+                val elapsed = durationMs - millisUntilFinished
+                binding.progressCapture.progress = ((elapsed.toFloat() / durationMs) * 1000)
+                    .toInt().coerceIn(0, 1000)
+                binding.tvCaptureCountdown.text = formatExposureSeconds(millisUntilFinished * 1_000_000L)
+            }
+
+            override fun onFinish() {
+                // La exposición terminó pero el archivo aún se está escribiendo/
+                // procesando: se cambia a modo indeterminado hasta que llegue
+                // onImageSaved/onError.
+                binding.progressCapture.isIndeterminate = true
+                binding.tvCaptureCountdown.text = getString(R.string.capture_processing)
+            }
+        }.start()
+    }
+
+    private fun hideCaptureProgressOverlay() {
+        captureProgressTimer?.cancel()
+        captureProgressTimer = null
+        binding.overlayCapture.visibility = View.GONE
+    }
+
     private fun updateGalleryThumbnail() {
-        val lastImage = outputDirectory.listFiles()
-            ?.filter { it.extension.equals("jpg", ignoreCase = true) || it.extension.equals("dng", ignoreCase = true) }
+        val lastMedia = outputDirectory.listFiles()
+            ?.filter {
+                it.extension.equals("jpg", ignoreCase = true) ||
+                    it.extension.equals("dng", ignoreCase = true) ||
+                    it.extension.equals("mp4", ignoreCase = true)
+            }
             ?.maxByOrNull { it.lastModified() }
 
-        if (lastImage != null && lastImage.extension.equals("jpg", ignoreCase = true)) {
-            binding.btnGallery.setImageURI(Uri.fromFile(lastImage))
-        } else if (lastImage != null) {
-            // Los archivos RAW (.dng) no se pueden decodificar como bitmap directamente.
-            binding.btnGallery.setImageResource(R.drawable.ic_manual)
-        } else {
-            binding.btnGallery.setImageResource(R.drawable.ic_gallery_placeholder)
+        when {
+            lastMedia == null -> binding.btnGallery.setImageResource(R.drawable.ic_gallery_placeholder)
+            lastMedia.extension.equals("jpg", ignoreCase = true) -> binding.btnGallery.setImageURI(Uri.fromFile(lastMedia))
+            lastMedia.extension.equals("mp4", ignoreCase = true) -> {
+                val thumb = MediaThumbnails.createVideoThumbnail(lastMedia)
+                if (thumb != null) binding.btnGallery.setImageBitmap(thumb) else binding.btnGallery.setImageResource(R.drawable.ic_video_placeholder)
+            }
+            else -> {
+                // Los archivos RAW (.dng) no se pueden decodificar como bitmap directamente.
+                binding.btnGallery.setImageResource(R.drawable.ic_manual)
+            }
         }
     }
 
@@ -831,6 +951,7 @@ class MainActivity : AppCompatActivity() {
     override fun onDestroy() {
         super.onDestroy()
         countDownTimer?.cancel()
+        captureProgressTimer?.cancel()
         stopTimelapse()
     }
 
@@ -847,6 +968,15 @@ class MainActivity : AppCompatActivity() {
         private const val ASTRO_MAX_EXPOSURE_NS = 30_000_000_000L // tope de 30s
         private const val ASTRO_DEFAULT_EXPOSURE_NS = 4_000_000_000L // 4s por defecto
         private const val ASTRO_DEFAULT_ISO_FRACTION = 70 // % del rango de ISO disponible
+
+        // A partir de este tiempo de exposición se muestra el overlay de
+        // progreso (exposiciones más cortas no lo necesitan).
+        private const val LONG_EXPOSURE_THRESHOLD_NS = 1_000_000_000L // 1s
+
+        // Framerate de reproducción del video de timelapse generado. Es
+        // independiente del intervalo de captura (que puede ser de varios
+        // segundos entre fotos): un timelapse de 100 fotos a 10 fps dura 10s.
+        private const val TIMELAPSE_VIDEO_FPS = 10
 
         /**
          * Directorio propio de la app dentro del almacenamiento específico de la aplicación.

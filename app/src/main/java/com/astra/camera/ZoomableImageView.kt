@@ -63,17 +63,43 @@ class ZoomableImageView @JvmOverloads constructor(
                 lastTouchY = event.y
                 isDragging = false
             }
+            MotionEvent.ACTION_POINTER_DOWN -> {
+                // Baja un segundo dedo (empieza el pellizco): se cancela
+                // cualquier arrastre en curso hasta que vuelva a quedar un
+                // solo dedo sobre la pantalla.
+                isDragging = false
+            }
             MotionEvent.ACTION_MOVE -> {
                 if (event.pointerCount == 1 && currentScale > MIN_SCALE + 0.01f) {
-                    val dx = event.x - lastTouchX
-                    val dy = event.y - lastTouchY
-                    drawMatrix.postTranslate(dx, dy)
-                    constrainTranslation()
-                    imageMatrix = drawMatrix
+                    if (isDragging) {
+                        val dx = event.x - lastTouchX
+                        val dy = event.y - lastTouchY
+                        drawMatrix.postTranslate(dx, dy)
+                        constrainTranslation()
+                        imageMatrix = drawMatrix
+                    }
                     lastTouchX = event.x
                     lastTouchY = event.y
+                    // El primer ACTION_MOVE tras un cambio de número de dedos
+                    // solo actualiza la referencia (sin mover la imagen), para
+                    // no arrastrar de golpe la distancia acumulada durante el
+                    // pellizco. A partir del siguiente evento sí se arrastra.
                     isDragging = true
                 }
+            }
+            MotionEvent.ACTION_POINTER_UP -> {
+                // Se levanta uno de los dedos durante un pellizco: se recalcula
+                // la referencia de arrastre usando el dedo que queda en pantalla.
+                // Sin esto, el siguiente ACTION_MOVE (ya con un solo puntero)
+                // compara contra una posición desactualizada del gesto anterior
+                // y la imagen "salta" hacia el dedo que quedó tocando.
+                val liftedIndex = event.actionIndex
+                val remainingIndex = if (liftedIndex == 0) 1 else 0
+                if (remainingIndex < event.pointerCount) {
+                    lastTouchX = event.getX(remainingIndex)
+                    lastTouchY = event.getY(remainingIndex)
+                }
+                isDragging = false
             }
             MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
                 isDragging = false
