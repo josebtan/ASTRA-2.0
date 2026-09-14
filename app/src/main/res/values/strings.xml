@@ -22,15 +22,11 @@
     <string name="raw_not_supported">Este dispositivo no soporta captura RAW, se usará JPEG</string>
     <string name="auto_label">AUTO</string>
 
-    <!-- Menú de modos colapsable -->
-    <string name="content_description_modes">Menú de modos</string>
+    <!-- Menú de modos: barra de pestañas -->
     <string name="mode_normal_label">NORMAL</string>
     <string name="mode_manual_name">Manual</string>
-    <string name="mode_manual_short">PRO</string>
     <string name="mode_timelapse_name">Timelapse</string>
-    <string name="mode_timelapse_short">LAPSO</string>
     <string name="mode_astro_name">Astrofotografía</string>
-    <string name="mode_astro_short">ASTRO</string>
 
     <!-- Submenú Timelapse -->
     <string name="timelapse_interval_label">Intervalo entre fotos</string>

@@ -143,45 +143,11 @@
             android:layout_height="1dp"
             android:layout_weight="1" />
 
-        <!-- Chip del menú de modos colapsable: Manual / Timelapse / Astrofotografía -->
-        <LinearLayout
-            android:id="@+id/btnModes"
-            android:layout_width="wrap_content"
-            android:layout_height="40dp"
-            android:orientation="horizontal"
-            android:gravity="center"
-            android:background="@drawable/bg_chip_button"
-            android:foreground="?attr/selectableItemBackground"
-            android:paddingHorizontal="14dp"
-            android:layout_marginStart="8dp"
-            android:clickable="true"
-            android:focusable="true"
-            android:contentDescription="@string/content_description_modes">
-
-            <ImageView
-                android:id="@+id/ivModesIcon"
-                android:layout_width="18dp"
-                android:layout_height="18dp"
-                android:src="@drawable/ic_modes"
-                android:contentDescription="@null" />
-
-            <TextView
-                android:id="@+id/tvModesLabel"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="6dp"
-                android:text="@string/mode_normal_label"
-                android:textColor="@color/astra_white"
-                android:textSize="12sp"
-                android:textStyle="bold"
-                android:letterSpacing="0.05" />
-
-        </LinearLayout>
-
     </LinearLayout>
 
-    <!-- Panel colapsable de modos: se muestra/oculta al pulsar el chip "Modos".
-         Cada modo es una sección de acordeón con su propio submenú de parámetros. -->
+    <!-- Submenú de parámetros del modo activo. Se despliega hacia arriba desde
+         la barra de pestañas de modos (justo debajo) y se oculta hacia abajo
+         al cerrarlo; solo se muestra el contenido del modo seleccionado. -->
     <ScrollView
         android:id="@+id/scrollModesPanel"
         android:layout_width="0dp"
@@ -190,10 +156,10 @@
         android:layout_marginBottom="12dp"
         android:visibility="gone"
         app:layout_constraintTop_toBottomOf="@id/topBar"
-        app:layout_constraintBottom_toTopOf="@id/bottomBar"
+        app:layout_constraintBottom_toTopOf="@id/modesTabBar"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintHeight_max="380dp"
+        app:layout_constraintHeight_max="360dp"
         app:layout_constraintVertical_bias="1"
         tools:visibility="visible">
 
@@ -205,58 +171,20 @@
             android:background="@drawable/bg_modes_panel"
             android:padding="16dp">
 
-            <!-- ===== Manual ===== -->
-            <LinearLayout
-                android:id="@+id/headerManual"
-                android:layout_width="match_parent"
-                android:layout_height="44dp"
-                android:orientation="horizontal"
-                android:gravity="center_vertical"
-                android:clickable="true"
-                android:focusable="true"
-                android:foreground="?attr/selectableItemBackground">
-
-                <ImageView
-                    android:layout_width="20dp"
-                    android:layout_height="20dp"
-                    android:src="@drawable/ic_manual"
-                    android:contentDescription="@null" />
-
-                <TextView
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:layout_marginStart="12dp"
-                    android:text="@string/mode_manual_name"
-                    android:textColor="@color/astra_white"
-                    android:textStyle="bold"
-                    android:textSize="15sp" />
-
-                <ImageView
-                    android:id="@+id/ivChevronManual"
-                    android:layout_width="20dp"
-                    android:layout_height="20dp"
-                    android:src="@drawable/ic_chevron_down"
-                    android:contentDescription="@null" />
-            </LinearLayout>
-
+            <!-- ===== Manual: ISO, exposición, contraste, RAW ===== -->
             <LinearLayout
                 android:id="@+id/contentManual"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
                 android:visibility="gone"
-                android:paddingStart="32dp"
-                android:paddingTop="8dp"
-                android:paddingBottom="8dp"
                 tools:visibility="visible">
 
                 <!-- ISO -->
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:orientation="horizontal"
-                    android:layout_marginTop="8dp">
+                    android:orientation="horizontal">
 
                     <TextView
                         android:layout_width="0dp"
@@ -399,64 +327,20 @@
                     android:focusable="true" />
             </LinearLayout>
 
-            <View
-                android:layout_width="match_parent"
-                android:layout_height="1dp"
-                android:layout_marginVertical="8dp"
-                android:background="@color/astra_divider" />
-
-            <!-- ===== Timelapse ===== -->
-            <LinearLayout
-                android:id="@+id/headerTimelapse"
-                android:layout_width="match_parent"
-                android:layout_height="44dp"
-                android:orientation="horizontal"
-                android:gravity="center_vertical"
-                android:clickable="true"
-                android:focusable="true"
-                android:foreground="?attr/selectableItemBackground">
-
-                <ImageView
-                    android:layout_width="20dp"
-                    android:layout_height="20dp"
-                    android:src="@drawable/ic_timelapse"
-                    android:contentDescription="@null" />
-
-                <TextView
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:layout_marginStart="12dp"
-                    android:text="@string/mode_timelapse_name"
-                    android:textColor="@color/astra_white"
-                    android:textStyle="bold"
-                    android:textSize="15sp" />
-
-                <ImageView
-                    android:id="@+id/ivChevronTimelapse"
-                    android:layout_width="20dp"
-                    android:layout_height="20dp"
-                    android:src="@drawable/ic_chevron_down"
-                    android:contentDescription="@null" />
-            </LinearLayout>
-
+            <!-- ===== Timelapse: intervalo, número de fotos, iniciar/detener ===== -->
             <LinearLayout
                 android:id="@+id/contentTimelapse"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
                 android:visibility="gone"
-                android:paddingStart="32dp"
-                android:paddingTop="8dp"
-                android:paddingBottom="8dp"
                 tools:visibility="visible">
 
                 <!-- Intervalo -->
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:orientation="horizontal"
-                    android:layout_marginTop="8dp">
+                    android:orientation="horizontal">
 
                     <TextView
                         android:layout_width="0dp"
@@ -575,56 +459,13 @@
                     android:textSize="11sp" />
             </LinearLayout>
 
-            <View
-                android:layout_width="match_parent"
-                android:layout_height="1dp"
-                android:layout_marginVertical="8dp"
-                android:background="@color/astra_divider" />
-
-            <!-- ===== Astrofotografía ===== -->
-            <LinearLayout
-                android:id="@+id/headerAstro"
-                android:layout_width="match_parent"
-                android:layout_height="44dp"
-                android:orientation="horizontal"
-                android:gravity="center_vertical"
-                android:clickable="true"
-                android:focusable="true"
-                android:foreground="?attr/selectableItemBackground">
-
-                <ImageView
-                    android:layout_width="20dp"
-                    android:layout_height="20dp"
-                    android:src="@drawable/ic_astro"
-                    android:contentDescription="@null" />
-
-                <TextView
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:layout_marginStart="12dp"
-                    android:text="@string/mode_astro_name"
-                    android:textColor="@color/astra_white"
-                    android:textStyle="bold"
-                    android:textSize="15sp" />
-
-                <ImageView
-                    android:id="@+id/ivChevronAstro"
-                    android:layout_width="20dp"
-                    android:layout_height="20dp"
-                    android:src="@drawable/ic_chevron_down"
-                    android:contentDescription="@null" />
-            </LinearLayout>
-
+            <!-- ===== Astrofotografía: ISO alto + exposición larga ===== -->
             <LinearLayout
                 android:id="@+id/contentAstro"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
                 android:visibility="gone"
-                android:paddingStart="32dp"
-                android:paddingTop="8dp"
-                android:paddingBottom="8dp"
                 tools:visibility="visible">
 
                 <!-- ISO astro -->
@@ -735,9 +576,9 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:paddingHorizontal="32dp"
-        android:paddingBottom="36dp"
+        android:paddingBottom="16dp"
         android:paddingTop="16dp"
-        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintBottom_toTopOf="@id/modesTabBar"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent">
 
@@ -799,6 +640,174 @@
             app:layout_constraintBottom_toBottomOf="parent" />
 
     </androidx.constraintlayout.widget.ConstraintLayout>
+
+    <!-- Barra de pestañas de modos: horizontal, debajo del botón de captura.
+         Cada pestaña alterna su propio submenú de parámetros, que se
+         despliega hacia arriba desde aquí (ver scrollModesPanel) y se
+         repliega hacia abajo al volver a tocar la pestaña activa o "Normal". -->
+    <LinearLayout
+        android:id="@+id/modesTabBar"
+        android:layout_width="0dp"
+        android:layout_height="56dp"
+        android:orientation="horizontal"
+        android:background="@color/astra_panel_bg"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent">
+
+        <LinearLayout
+            android:id="@+id/tabNormal"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:orientation="vertical"
+            android:gravity="center"
+            android:background="?attr/selectableItemBackground"
+            android:clickable="true"
+            android:focusable="true">
+
+            <View
+                android:id="@+id/indicatorNormal"
+                android:layout_width="24dp"
+                android:layout_height="2dp"
+                android:background="@color/astra_accent"
+                android:visibility="invisible" />
+
+            <ImageView
+                android:layout_width="18dp"
+                android:layout_height="18dp"
+                android:layout_marginTop="5dp"
+                android:src="@drawable/ic_auto_mode"
+                app:tint="@color/tab_icon_color"
+                android:duplicateParentState="true"
+                android:contentDescription="@null" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="2dp"
+                android:text="@string/mode_normal_label"
+                android:textColor="@color/tab_icon_color"
+                android:textSize="10sp"
+                android:textStyle="bold"
+                android:duplicateParentState="true" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/tabManual"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:orientation="vertical"
+            android:gravity="center"
+            android:background="?attr/selectableItemBackground"
+            android:clickable="true"
+            android:focusable="true">
+
+            <View
+                android:id="@+id/indicatorManual"
+                android:layout_width="24dp"
+                android:layout_height="2dp"
+                android:background="@color/astra_accent"
+                android:visibility="invisible" />
+
+            <ImageView
+                android:layout_width="18dp"
+                android:layout_height="18dp"
+                android:layout_marginTop="5dp"
+                android:src="@drawable/ic_manual"
+                app:tint="@color/tab_icon_color"
+                android:duplicateParentState="true"
+                android:contentDescription="@null" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="2dp"
+                android:text="@string/mode_manual_name"
+                android:textColor="@color/tab_icon_color"
+                android:textSize="10sp"
+                android:textStyle="bold"
+                android:duplicateParentState="true" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/tabTimelapse"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:orientation="vertical"
+            android:gravity="center"
+            android:background="?attr/selectableItemBackground"
+            android:clickable="true"
+            android:focusable="true">
+
+            <View
+                android:id="@+id/indicatorTimelapse"
+                android:layout_width="24dp"
+                android:layout_height="2dp"
+                android:background="@color/astra_accent"
+                android:visibility="invisible" />
+
+            <ImageView
+                android:layout_width="18dp"
+                android:layout_height="18dp"
+                android:layout_marginTop="5dp"
+                android:src="@drawable/ic_timelapse"
+                app:tint="@color/tab_icon_color"
+                android:duplicateParentState="true"
+                android:contentDescription="@null" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="2dp"
+                android:text="@string/mode_timelapse_name"
+                android:textColor="@color/tab_icon_color"
+                android:textSize="10sp"
+                android:textStyle="bold"
+                android:duplicateParentState="true" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/tabAstro"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:orientation="vertical"
+            android:gravity="center"
+            android:background="?attr/selectableItemBackground"
+            android:clickable="true"
+            android:focusable="true">
+
+            <View
+                android:id="@+id/indicatorAstro"
+                android:layout_width="24dp"
+                android:layout_height="2dp"
+                android:background="@color/astra_accent"
+                android:visibility="invisible" />
+
+            <ImageView
+                android:layout_width="18dp"
+                android:layout_height="18dp"
+                android:layout_marginTop="5dp"
+                android:src="@drawable/ic_astro"
+                app:tint="@color/tab_icon_color"
+                android:duplicateParentState="true"
+                android:contentDescription="@null" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="2dp"
+                android:text="@string/mode_astro_name"
+                android:textColor="@color/tab_icon_color"
+                android:textSize="10sp"
+                android:textStyle="bold"
+                android:duplicateParentState="true" />
+        </LinearLayout>
+
+    </LinearLayout>
 
     <!-- Contador de tiempo restante durante una captura de exposición larga
          (Astro). Flota justo encima del botón de captura, que ahora muestra

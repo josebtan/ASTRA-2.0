@@ -12,10 +12,10 @@ import android.os.Handler
 import android.os.Looper
 import android.util.Log
 import android.util.Range
+import android.view.Gravity
 import android.view.OrientationEventListener
 import android.view.Surface
 import android.view.View
-import android.view.ViewGroup
 import android.widget.SeekBar
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
@@ -32,7 +32,7 @@ import androidx.camera.core.ImageCaptureException
 import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.core.content.ContextCompat
-import androidx.transition.AutoTransition
+import androidx.transition.Slide
 import androidx.transition.TransitionManager
 import com.astra.camera.databinding.ActivityMainBinding
 import java.io.File
@@ -136,12 +136,11 @@ class MainActivity : AppCompatActivity() {
         binding.btnSwitchCamera.setOnClickListener { switchCamera() }
         binding.btnFlash.setOnClickListener { toggleFlash() }
         binding.btnTimer.setOnClickListener { cycleTimer() }
-        binding.btnModes.setOnClickListener { toggleModesPanel() }
         binding.btnGallery.setOnClickListener {
             startActivity(Intent(this, GalleryActivity::class.java))
         }
 
-        setupModesAccordion()
+        setupModesTabBar()
         setupManualSection()
         setupTimelapseSection()
         setupAstroSection()
@@ -356,26 +355,21 @@ class MainActivity : AppCompatActivity() {
     }
 
     // ============================================================
-    // Menú de modos colapsable (acordeón: Manual / Timelapse / Astro)
+    // Menú de modos: barra de pestañas (Normal / Manual / Timelapse / Astro)
     // ============================================================
 
-    private fun toggleModesPanel() {
-        val panelContainer = binding.scrollModesPanel
-        val isVisible = panelContainer.visibility == View.VISIBLE
-        animateContainer(binding.root)
-        panelContainer.visibility = if (isVisible) View.GONE else View.VISIBLE
-    }
-
-    private fun setupModesAccordion() {
-        binding.headerManual.setOnClickListener { selectMode(CameraMode.MANUAL) }
-        binding.headerTimelapse.setOnClickListener { selectMode(CameraMode.TIMELAPSE) }
-        binding.headerAstro.setOnClickListener { selectMode(CameraMode.ASTRO) }
+    private fun setupModesTabBar() {
+        binding.tabNormal.setOnClickListener { selectMode(CameraMode.NORMAL) }
+        binding.tabManual.setOnClickListener { selectMode(CameraMode.MANUAL) }
+        binding.tabTimelapse.setOnClickListener { selectMode(CameraMode.TIMELAPSE) }
+        binding.tabAstro.setOnClickListener { selectMode(CameraMode.ASTRO) }
         updateModesUi()
     }
 
     /**
      * Selecciona (o deselecciona, si ya estaba activo) un modo de disparo.
-     * Solo un submenú de parámetros permanece expandido a la vez.
+     * Tocar la pestaña "Normal", o volver a tocar la pestaña ya activa,
+     * cierra el submenú y vuelve al modo automático.
      */
     private fun selectMode(mode: CameraMode) {
         val previousMode = currentMode
@@ -398,29 +392,35 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun animateContainer(container: ViewGroup) {
-        TransitionManager.beginDelayedTransition(container, AutoTransition().setDuration(200))
+    /** Despliega el submenú deslizándolo hacia arriba, o lo repliega hacia abajo. */
+    private fun animatePanelVisibility(show: Boolean) {
+        val isCurrentlyVisible = binding.scrollModesPanel.visibility == View.VISIBLE
+        if (show == isCurrentlyVisible) return
+
+        val slide = Slide(Gravity.BOTTOM).apply {
+            duration = 220
+            addTarget(binding.scrollModesPanel)
+        }
+        TransitionManager.beginDelayedTransition(binding.root, slide)
+        binding.scrollModesPanel.visibility = if (show) View.VISIBLE else View.GONE
     }
 
     private fun updateModesUi() {
-        animateContainer(binding.panelModes)
+        animatePanelVisibility(currentMode != CameraMode.NORMAL)
 
         binding.contentManual.visibility = if (currentMode == CameraMode.MANUAL) View.VISIBLE else View.GONE
         binding.contentTimelapse.visibility = if (currentMode == CameraMode.TIMELAPSE) View.VISIBLE else View.GONE
         binding.contentAstro.visibility = if (currentMode == CameraMode.ASTRO) View.VISIBLE else View.GONE
 
-        binding.ivChevronManual.rotation = if (currentMode == CameraMode.MANUAL) 180f else 0f
-        binding.ivChevronTimelapse.rotation = if (currentMode == CameraMode.TIMELAPSE) 180f else 0f
-        binding.ivChevronAstro.rotation = if (currentMode == CameraMode.ASTRO) 180f else 0f
+        binding.tabNormal.isSelected = currentMode == CameraMode.NORMAL
+        binding.tabManual.isSelected = currentMode == CameraMode.MANUAL
+        binding.tabTimelapse.isSelected = currentMode == CameraMode.TIMELAPSE
+        binding.tabAstro.isSelected = currentMode == CameraMode.ASTRO
 
-        val labelRes = when (currentMode) {
-            CameraMode.NORMAL -> R.string.mode_normal_label
-            CameraMode.MANUAL -> R.string.mode_manual_short
-            CameraMode.TIMELAPSE -> R.string.mode_timelapse_short
-            CameraMode.ASTRO -> R.string.mode_astro_short
-        }
-        binding.tvModesLabel.text = getString(labelRes)
-        binding.ivModesIcon.alpha = if (currentMode == CameraMode.NORMAL) 0.7f else 1f
+        binding.indicatorNormal.visibility = if (currentMode == CameraMode.NORMAL) View.VISIBLE else View.INVISIBLE
+        binding.indicatorManual.visibility = if (currentMode == CameraMode.MANUAL) View.VISIBLE else View.INVISIBLE
+        binding.indicatorTimelapse.visibility = if (currentMode == CameraMode.TIMELAPSE) View.VISIBLE else View.INVISIBLE
+        binding.indicatorAstro.visibility = if (currentMode == CameraMode.ASTRO) View.VISIBLE else View.INVISIBLE
     }
 
     // --- Submenú Manual: ISO, exposición, contraste, RAW ---
@@ -1013,8 +1013,6 @@ class MainActivity : AppCompatActivity() {
             binding.ivFlashIcon,
             binding.tvFlashLabel,
             binding.tvTimerLabel,
-            binding.ivModesIcon,
-            binding.tvModesLabel,
             binding.btnGallery,
             binding.btnSwitchCamera
         )
