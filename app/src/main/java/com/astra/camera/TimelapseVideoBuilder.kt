@@ -42,29 +42,35 @@ object TimelapseVideoBuilder {
 
     /**
      * Construye el video en un hilo secundario y notifica el resultado en el
-     * hilo principal a través de [onComplete].
+     * hilo principal a través de [onComplete]. Si falla, [onComplete] recibe
+     * además un mensaje con la etapa y la excepción exactas (se registra
+     * también en Logcat con el tag [TAG]), para poder diagnosticar el fallo
+     * sin necesidad de reproducirlo con un depurador conectado.
      */
     fun buildVideoAsync(
         frameFiles: List<File>,
         outputFile: File,
         frameRate: Int,
-        onComplete: (success: Boolean) -> Unit
+        onComplete: (success: Boolean, errorDetail: String?) -> Unit
     ) {
         Thread({
+            var errorDetail: String? = null
             val success = try {
                 buildVideo(frameFiles, outputFile, frameRate)
                 true
             } catch (e: Exception) {
-                Log.e(TAG, "Error generando el video del timelapse", e)
+                errorDetail = "${e.javaClass.simpleName}: ${e.message}"
+                Log.e(TAG, "Error generando el video del timelapse ($errorDetail)", e)
                 outputFile.delete()
                 false
             }
-            Handler(Looper.getMainLooper()).post { onComplete(success) }
+            Handler(Looper.getMainLooper()).post { onComplete(success, errorDetail) }
         }, "astra-timelapse-encoder").start()
     }
 
     private fun buildVideo(frameFiles: List<File>, outputFile: File, frameRate: Int) {
         require(frameFiles.isNotEmpty()) { "No hay fotogramas para generar el video" }
+        Log.d(TAG, "Iniciando build: ${frameFiles.size} fotogramas, ${frameRate}fps solicitados -> ${outputFile.absolutePath}")
 
         // Se usa el tamaño del primer fotograma para calcular la resolución
         // del video, pero SIEMPRE escalada a un tamaño razonable para video
@@ -73,16 +79,43 @@ object TimelapseVideoBuilder {
         // falle al configurarse en muchos dispositivos.
         val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
         BitmapFactory.decodeFile(frameFiles.first().absolutePath, bounds)
-        require(bounds.outWidth > 0 && bounds.outHeight > 0) { "Resolución de fotograma inválida" }
+        require(bounds.outWidth > 0 && bounds.outHeight > 0) {
+            "No se pudo leer la resolución del primer fotograma (${frameFiles.first().absolutePath}); " +
+                "puede que el archivo esté corrupto o incompleto"
+        }
+        Log.d(TAG, "Fotograma original: ${bounds.outWidth}x${bounds.outHeight}")
 
-        val codecInfo = MediaCodecList(MediaCodecList.REGULAR_CODECS).codecInfos
-            .firstOrNull { info -> info.isEncoder && info.supportedTypes.any { it.equals(MIME_TYPE, ignoreCase = true) } }
-            ?: throw IllegalStateException("El dispositivo no tiene un encoder H.264 disponible")
-        val videoCapabilities = codecInfo.getCapabilitiesForType(MIME_TYPE).videoCapabilities
+        val codecInfo = try {
+            MediaCodecList(MediaCodecList.REGULAR_CODECS).codecInfos
+                .firstOrNull { info -> info.isEncoder && info.supportedTypes.any { it.equals(MIME_TYPE, ignoreCase = true) } }
+                ?: throw IllegalStateException("El dispositivo no reporta ningún encoder para $MIME_TYPE")
+        } catch (e: Exception) {
+            throw IllegalStateException("Fallo al listar encoders del dispositivo: ${e.message}", e)
+        }
+        Log.d(TAG, "Encoder elegido: ${codecInfo.name}")
+
+        val videoCapabilities = try {
+            codecInfo.getCapabilitiesForType(MIME_TYPE).videoCapabilities
+        } catch (e: Exception) {
+            Log.w(TAG, "No se pudieron leer las capacidades de video del encoder, se continúa sin validarlas", e)
+            null
+        }
+        if (videoCapabilities != null) {
+            Log.d(
+                TAG,
+                "Capacidades del encoder: anchos=${videoCapabilities.supportedWidths}, " +
+                    "altos=${videoCapabilities.supportedHeights}, bitrates=${videoCapabilities.bitrateRange}"
+            )
+        }
 
         val (width, height) = resolveEncodeSize(bounds.outWidth, bounds.outHeight, videoCapabilities)
         val colorFormat = selectColorFormat(codecInfo)
         val safeFrameRate = clampFrameRate(frameRate, width, height, videoCapabilities)
+        Log.d(
+            TAG,
+            "Resolución final: ${width}x$height, colorFormat=$colorFormat, frameRate=$safeFrameRate " +
+                "(soportado=${videoCapabilities?.isSizeSupported(width, height)})"
+        )
 
         val format = MediaFormat.createVideoFormat(MIME_TYPE, width, height).apply {
             setInteger(MediaFormat.KEY_COLOR_FORMAT, colorFormat)
@@ -91,11 +124,36 @@ object TimelapseVideoBuilder {
             setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, I_FRAME_INTERVAL)
         }
 
-        val encoder = MediaCodec.createEncoderByType(MIME_TYPE)
-        encoder.configure(format, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE)
-        encoder.start()
+        val encoder = try {
+            MediaCodec.createEncoderByType(MIME_TYPE)
+        } catch (e: Exception) {
+            throw IllegalStateException("MediaCodec.createEncoderByType($MIME_TYPE) falló: ${e.message}", e)
+        }
+        try {
+            encoder.configure(format, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE)
+        } catch (e: Exception) {
+            encoder.release()
+            throw IllegalStateException(
+                "encoder.configure() falló con formato=$format (resolución ${width}x$height, " +
+                    "colorFormat=$colorFormat): ${e.message}",
+                e
+            )
+        }
+        try {
+            encoder.start()
+        } catch (e: Exception) {
+            encoder.release()
+            throw IllegalStateException("encoder.start() falló: ${e.message}", e)
+        }
+        Log.d(TAG, "Encoder configurado e iniciado correctamente")
 
-        val muxer = MediaMuxer(outputFile.absolutePath, MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4)
+        val muxer = try {
+            MediaMuxer(outputFile.absolutePath, MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4)
+        } catch (e: Exception) {
+            encoder.stop()
+            encoder.release()
+            throw IllegalStateException("No se pudo crear el MediaMuxer en ${outputFile.absolutePath}: ${e.message}", e)
+        }
         var trackIndex = -1
         var muxerStarted = false
         val bufferInfo = MediaCodec.BufferInfo()
@@ -112,6 +170,7 @@ object TimelapseVideoBuilder {
                         trackIndex = muxer.addTrack(encoder.outputFormat)
                         muxer.start()
                         muxerStarted = true
+                        Log.d(TAG, "Muxer iniciado con formato: ${encoder.outputFormat}")
                     }
                     outIndex >= 0 -> {
                         val encodedData = encoder.getOutputBuffer(outIndex)
@@ -123,6 +182,12 @@ object TimelapseVideoBuilder {
                                 encodedData.position(bufferInfo.offset)
                                 encodedData.limit(bufferInfo.offset + bufferInfo.size)
                                 muxer.writeSampleData(trackIndex, encodedData, bufferInfo)
+                            } else if (bufferInfo.size != 0) {
+                                // No debería pasar (el muxer siempre se inicia con
+                                // INFO_OUTPUT_FORMAT_CHANGED antes del primer dato),
+                                // pero si pasa, se pierde ese fotograma silenciosamente
+                                // sin esto: se deja constancia en el log.
+                                Log.w(TAG, "Datos codificados descartados: el muxer aún no había iniciado")
                             }
                         }
                         encoder.releaseOutputBuffer(outIndex, false)
@@ -133,30 +198,67 @@ object TimelapseVideoBuilder {
         }
 
         try {
-            for (file in frameFiles) {
-                val bitmap = decodeAndFitBitmap(file, width, height) ?: continue
+            for ((frameIndex, file) in frameFiles.withIndex()) {
+                val bitmap = decodeAndFitBitmap(file, width, height)
+                if (bitmap == null) {
+                    Log.w(TAG, "Fotograma $frameIndex (${file.name}) no se pudo decodificar, se omite")
+                    continue
+                }
                 val frameBytes = bitmapToYuv(bitmap, width, height, colorFormat)
                 bitmap.recycle()
 
                 var queued = false
+                var waitAttempts = 0
                 while (!queued) {
                     val inputIndex = encoder.dequeueInputBuffer(DEQUEUE_TIMEOUT_US)
                     if (inputIndex >= 0) {
                         val inputBuffer = encoder.getInputBuffer(inputIndex)
-                        inputBuffer?.clear()
-                        inputBuffer?.put(frameBytes)
+                            ?: throw IllegalStateException("encoder.getInputBuffer($inputIndex) devolvió null en el fotograma $frameIndex")
+                        inputBuffer.clear()
+                        inputBuffer.put(frameBytes)
                         encoder.queueInputBuffer(inputIndex, 0, frameBytes.size, presentationTimeUs, 0)
                         presentationTimeUs += frameDurationUs
                         queued = true
+                    } else {
+                        waitAttempts++
+                        if (waitAttempts > 500) {
+                            // ~5s sin conseguir un input buffer libre: el encoder
+                            // está atascado, mejor abortar con un error claro que
+                            // colgar la app indefinidamente.
+                            throw IllegalStateException(
+                                "El encoder no liberó ningún input buffer tras $waitAttempts intentos " +
+                                    "(fotograma $frameIndex de ${frameFiles.size})"
+                            )
+                        }
                     }
                     drainEncoder(false)
                 }
+                if (frameIndex % 20 == 0) {
+                    Log.d(TAG, "Codificado fotograma $frameIndex de ${frameFiles.size}")
+                }
             }
             drainEncoder(true)
+            Log.d(TAG, "Codificación completa, muxerStarted=$muxerStarted")
+            if (!muxerStarted) {
+                throw IllegalStateException(
+                    "El muxer nunca llegó a iniciarse (no se recibió INFO_OUTPUT_FORMAT_CHANGED); " +
+                        "el archivo de salida quedaría vacío/corrupto"
+                )
+            }
         } finally {
-            encoder.stop()
+            try {
+                encoder.stop()
+            } catch (e: Exception) {
+                Log.w(TAG, "encoder.stop() lanzó una excepción (se ignora, ya se procesó lo necesario)", e)
+            }
             encoder.release()
-            if (muxerStarted) muxer.stop()
+            if (muxerStarted) {
+                try {
+                    muxer.stop()
+                } catch (e: Exception) {
+                    Log.w(TAG, "muxer.stop() lanzó una excepción", e)
+                }
+            }
             muxer.release()
         }
     }

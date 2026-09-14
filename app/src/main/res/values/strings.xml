@@ -65,5 +65,6 @@
     <string name="timelapse_video_saved">Video guardado en la galería ✓</string>
     <string name="timelapse_video_saved_with_duration">Video guardado ✓ (%1$s)</string>
     <string name="timelapse_video_error">Error al generar el video del timelapse</string>
+    <string name="timelapse_video_error_detail">Error al generar el video: %1$s</string>
     <string name="timelapse_no_frames">No se capturó ninguna foto</string>
 </resources>

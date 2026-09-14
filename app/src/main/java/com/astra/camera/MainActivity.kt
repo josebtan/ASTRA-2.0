@@ -69,6 +69,10 @@ class MainActivity : AppCompatActivity() {
 
     // --- Menú de modos ---
     private var currentMode = CameraMode.NORMAL
+    // Independiente de currentMode: permite plegar el submenú de parámetros
+    // sin perder la función seleccionada (p. ej. seguir en Timelapse con el
+    // panel oculto, para ver la cámara completa mientras captura).
+    private var modesPanelExpanded = false
 
     // --- Controles manuales (modo Manual) ---
     private var manualIso: Int? = null // null = automático
@@ -378,13 +382,22 @@ class MainActivity : AppCompatActivity() {
     }
 
     /**
-     * Selecciona (o deselecciona, si ya estaba activo) un modo de disparo.
-     * Tocar la pestaña "Normal", o volver a tocar la pestaña ya activa,
-     * cierra el submenú y vuelve al modo automático.
+     * Selecciona un modo de disparo, o si ya era el modo activo, solo
+     * pliega/despliega su submenú de parámetros sin deseleccionarlo — así
+     * puedes ajustar algo, ocultar el panel para ver la cámara completa, y
+     * seguir en la misma función (incluso con una captura en curso).
+     * Tocar "Normal" siempre vuelve al modo automático y oculta el panel.
      */
     private fun selectMode(mode: CameraMode) {
+        if (currentMode == mode && mode != CameraMode.NORMAL) {
+            modesPanelExpanded = !modesPanelExpanded
+            animatePanelVisibility(modesPanelExpanded)
+            return
+        }
+
         val previousMode = currentMode
-        currentMode = if (currentMode == mode) CameraMode.NORMAL else mode
+        currentMode = mode
+        modesPanelExpanded = currentMode != CameraMode.NORMAL
 
         if (isTimelapseRunning && currentMode != CameraMode.TIMELAPSE) {
             stopTimelapse()
@@ -420,7 +433,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun updateModesUi() {
-        animatePanelVisibility(currentMode != CameraMode.NORMAL)
+        animatePanelVisibility(modesPanelExpanded)
 
         binding.contentManual.visibility = if (currentMode == CameraMode.MANUAL) View.VISIBLE else View.GONE
         binding.contentTimelapse.visibility = if (currentMode == CameraMode.TIMELAPSE) View.VISIBLE else View.GONE
@@ -704,7 +717,7 @@ class MainActivity : AppCompatActivity() {
         val videoFileName = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(System.currentTimeMillis())
         val outputVideo = File(outputDirectory, "ASTRA_TIMELAPSE_$videoFileName.mp4")
 
-        TimelapseVideoBuilder.buildVideoAsync(frameFiles, outputVideo, fpsUsed) { success ->
+        TimelapseVideoBuilder.buildVideoAsync(frameFiles, outputVideo, fpsUsed) { success, errorDetail ->
             framesDir?.deleteRecursively()
             if (isFinishing || isDestroyed) return@buildVideoAsync
 
@@ -715,8 +728,15 @@ class MainActivity : AppCompatActivity() {
                 Toast.makeText(this, message, Toast.LENGTH_LONG).show()
                 updateGalleryThumbnail()
             } else {
-                binding.tvTimelapseStatus.text = getString(R.string.timelapse_video_error)
-                Toast.makeText(this, getString(R.string.timelapse_video_error), Toast.LENGTH_LONG).show()
+                // Se muestra el detalle real de la excepción (no solo un
+                // mensaje genérico) para poder diagnosticar el fallo sin
+                // depender de Logcat. También queda en Logcat con el tag
+                // TimelapseVideoBuilder por si se necesita más contexto.
+                val detail = errorDetail ?: "causa desconocida"
+                val message = getString(R.string.timelapse_video_error_detail, detail)
+                binding.tvTimelapseStatus.text = message
+                Toast.makeText(this, message, Toast.LENGTH_LONG).show()
+                Log.e(TAG, "Fallo al generar el video del timelapse: $detail")
             }
         }
     }
