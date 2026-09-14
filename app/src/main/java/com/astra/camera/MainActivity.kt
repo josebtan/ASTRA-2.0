@@ -881,6 +881,8 @@ class MainActivity : AppCompatActivity() {
         astroStackCaptureInFlight = false
         astroStackShotsTaken = 0
         binding.btnCapture.isSelected = true
+        binding.astroStackInfoPill.visibility = View.VISIBLE
+        updateAstroStackInfoPill()
         updateAstroStackStatus()
         captureNextStackFrame()
     }
@@ -932,7 +934,7 @@ class MainActivity : AppCompatActivity() {
     private fun onStackFrameFinished() {
         astroStackCaptureInFlight = false
         astroStackShotsTaken++
-        updateAstroStackStatus()
+        updateAstroStackInfoPill()
 
         if (!isAstroStackingRunning) {
             // El usuario pidió detener mientras este fotograma se estaba
@@ -954,12 +956,12 @@ class MainActivity : AppCompatActivity() {
         if (!isAstroStackingRunning) return
         isAstroStackingRunning = false
         binding.btnCapture.isSelected = false
+        binding.astroStackInfoPill.visibility = View.GONE
+        updateAstroStackStatus()
         // Si hay una captura en curso, es [onStackFrameFinished] quien
         // procesará el stacking en cuanto esa foto termine de guardarse.
         if (!astroStackCaptureInFlight) {
             buildStackedImageFromFrames()
-        } else {
-            updateAstroStackStatus()
         }
     }
 
@@ -1006,10 +1008,19 @@ class MainActivity : AppCompatActivity() {
 
     private fun updateAstroStackStatus() {
         binding.tvAstroStackStatus.text = if (isAstroStackingRunning) {
-            getString(R.string.astro_stacking_status_running, astroStackShotsTaken, astroStackTargetShots)
+            getString(R.string.astro_stacking_status_running_hint)
         } else {
             getString(R.string.astro_stacking_status_idle)
         }
+    }
+
+    /**
+     * Actualiza el "pill" que flota sobre la previsualización de cámara
+     * mientras el stacking está capturando (fotos tomadas de un total).
+     */
+    private fun updateAstroStackInfoPill() {
+        binding.tvAstroStackInfo.text =
+            getString(R.string.astro_stacking_status_running, astroStackShotsTaken, astroStackTargetShots)
     }
 
     // ============================================================
