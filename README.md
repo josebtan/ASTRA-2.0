@@ -25,7 +25,7 @@ Primera versión funcional: **app básica de cámara** con las funciones más co
     - **ISO** manual (en dispositivos que lo soportan; si no, se indica y se usa automático).
     - **Exposición (EV)** — compensación de exposición estándar, funciona en la mayoría de los dispositivos.
     - **Contraste** — se aplica como post-procesado al guardar la foto (no es un parámetro de hardware estándar entre fabricantes).
-    - **Captura en RAW (.dng)** — en dispositivos compatibles. Si el dispositivo no soporta RAW, se avisa y se usa JPEG automáticamente. Los archivos `.dng` no se pueden previsualizar como miniatura (se muestra un ícono), pero sí eliminarse desde la galería o abrirse con una app compatible con RAW.
+    - **Captura en RAW (.dng)** — en dispositivos compatibles. Si el dispositivo no soporta RAW, se avisa y se usa JPEG automáticamente. Los archivos `.dng` se muestran en la galería usando la vista previa JPEG embebida en sus propios metadatos EXIF (estándar en cualquier DNG generado por cámara), con zoom igual que cualquier otra foto; el archivo original conserva todos los datos sin procesar.
   - **Timelapse**: intervalo configurable (1–120s) y número de fotos (o infinito, hasta detener manualmente). Con el modo activo, el botón de disparo inicia/detiene la secuencia (se pone en rojo mientras está en curso) y un texto de estado muestra el progreso.
   - **Astrofotografía**: pensado para fotografía nocturna con trípode. Permite fijar un ISO alto y un tiempo de exposición largo (hasta 30s, según lo que soporte el sensor) de forma independiente al modo Manual, con reducción de ruido activable/desactivable. Al disparar en este modo la app prioriza calidad sobre velocidad, por lo que la captura puede tardar varios segundos en completarse.
 

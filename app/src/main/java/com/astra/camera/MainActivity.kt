@@ -16,6 +16,7 @@ import android.view.Gravity
 import android.view.OrientationEventListener
 import android.view.Surface
 import android.view.View
+import android.widget.LinearLayout
 import android.widget.SeekBar
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
@@ -31,7 +32,9 @@ import androidx.camera.core.ImageCapture
 import androidx.camera.core.ImageCaptureException
 import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
+import androidx.constraintlayout.widget.ConstraintSet
 import androidx.core.content.ContextCompat
+import androidx.transition.AutoTransition
 import androidx.transition.Slide
 import androidx.transition.TransitionManager
 import com.astra.camera.databinding.ActivityMainBinding
@@ -1264,7 +1267,99 @@ class MainActivity : AppCompatActivity() {
         controls.forEach { view ->
             view.animate().rotation(degrees).setDuration(250).start()
         }
+
+        repositionModesMenu(rotation)
     }
+
+    /**
+     * Reubica el menú de modos completo (no solo su contenido) según el lado
+     * hacia el que esté girado el teléfono:
+     * - Vertical (arriba o "cabeza abajo"): barra horizontal abajo, como siempre.
+     * - Girado hacia un lado (horizontal): la barra pasa a ser una columna
+     *   vertical pegada al lateral correspondiente (derecho o izquierdo),
+     *   y la barra de captura ocupa directamente el borde inferior.
+     *
+     * Esto es necesario porque simplemente rotar el contenido de cada
+     * pestaña "in place" dentro de una franja de 56dp de alto no deja
+     * espacio suficiente al girarlo 90°: el contenido queda recortado.
+     * Reestructurando el ancho/alto real de la barra se evita ese problema.
+     */
+    private fun repositionModesMenu(rotation: Int) {
+        val sideBarId = binding.modesTabBar.id
+        val bottomBarId = binding.bottomBar.id
+        val topBarId = binding.topBar.id
+        val isSideways = rotation == Surface.ROTATION_90 || rotation == Surface.ROTATION_270
+
+        val constraintSet = ConstraintSet()
+        constraintSet.clone(binding.root)
+
+        // Se inicia la transición ANTES de aplicar cualquier cambio (tanto el
+        // ConstraintSet como el reordenamiento del LinearLayout interno), para
+        // que el sistema capture el estado "antes" y anime ambos a la vez.
+        TransitionManager.beginDelayedTransition(binding.root, AutoTransition().setDuration(250))
+
+        if (isSideways) {
+            constraintSet.constrainWidth(sideBarId, dpToPx(MODES_SIDE_BAR_SIZE_DP))
+            constraintSet.constrainHeight(sideBarId, 0)
+            constraintSet.clear(sideBarId, ConstraintSet.START)
+            constraintSet.clear(sideBarId, ConstraintSet.END)
+            constraintSet.connect(sideBarId, ConstraintSet.TOP, topBarId, ConstraintSet.BOTTOM)
+            constraintSet.connect(sideBarId, ConstraintSet.BOTTOM, ConstraintSet.PARENT_ID, ConstraintSet.BOTTOM)
+            if (rotation == Surface.ROTATION_90) {
+                // El teléfono se giró de forma que el lado de gravedad quedó a
+                // la derecha de la pantalla en coordenadas fijas de la app.
+                constraintSet.connect(sideBarId, ConstraintSet.END, ConstraintSet.PARENT_ID, ConstraintSet.END)
+            } else {
+                constraintSet.connect(sideBarId, ConstraintSet.START, ConstraintSet.PARENT_ID, ConstraintSet.START)
+            }
+
+            constraintSet.clear(bottomBarId, ConstraintSet.BOTTOM)
+            constraintSet.connect(bottomBarId, ConstraintSet.BOTTOM, ConstraintSet.PARENT_ID, ConstraintSet.BOTTOM)
+
+            setModesTabBarVertical(true)
+        } else {
+            constraintSet.constrainWidth(sideBarId, 0)
+            constraintSet.constrainHeight(sideBarId, dpToPx(MODES_SIDE_BAR_SIZE_DP))
+            constraintSet.clear(sideBarId, ConstraintSet.TOP)
+            constraintSet.connect(sideBarId, ConstraintSet.START, ConstraintSet.PARENT_ID, ConstraintSet.START)
+            constraintSet.connect(sideBarId, ConstraintSet.END, ConstraintSet.PARENT_ID, ConstraintSet.END)
+            constraintSet.connect(sideBarId, ConstraintSet.BOTTOM, ConstraintSet.PARENT_ID, ConstraintSet.BOTTOM)
+
+            constraintSet.clear(bottomBarId, ConstraintSet.BOTTOM)
+            constraintSet.connect(bottomBarId, ConstraintSet.BOTTOM, sideBarId, ConstraintSet.TOP)
+
+            setModesTabBarVertical(false)
+        }
+
+        constraintSet.applyTo(binding.root)
+    }
+
+    /**
+     * Cambia la orientación interna de la barra de pestañas y de cada
+     * pestaña individual entre horizontal (abajo) y vertical (lateral).
+     * En LinearLayout, el "peso" (weight) que reparte el espacio actúa
+     * sobre el ancho en horizontal y sobre el alto en vertical, así que
+     * hay que intercambiar cuál de las dos dimensiones queda en 0dp.
+     */
+    private fun setModesTabBarVertical(vertical: Boolean) {
+        binding.modesTabBar.orientation = if (vertical) LinearLayout.VERTICAL else LinearLayout.HORIZONTAL
+
+        val tabs = listOf(binding.tabNormal, binding.tabManual, binding.tabTimelapse, binding.tabAstro)
+        tabs.forEach { tab ->
+            val params = tab.layoutParams as LinearLayout.LayoutParams
+            if (vertical) {
+                params.width = LinearLayout.LayoutParams.MATCH_PARENT
+                params.height = 0
+            } else {
+                params.width = 0
+                params.height = LinearLayout.LayoutParams.MATCH_PARENT
+            }
+            params.weight = 1f
+            tab.layoutParams = params
+        }
+    }
+
+    private fun dpToPx(dp: Int): Int = (dp * resources.displayMetrics.density).toInt()
 
     override fun onDestroy() {
         super.onDestroy()
@@ -1276,6 +1371,9 @@ class MainActivity : AppCompatActivity() {
 
     companion object {
         private const val TAG = "AstraCamera"
+
+        // Tamaño (ancho en horizontal / alto en lateral) de la barra de modos.
+        private const val MODES_SIDE_BAR_SIZE_DP = 56
 
         // Tiempo de exposición por defecto (1/100s) usado al fijar un ISO manual,
         // ya que al desactivar la exposición automática también hay que fijar

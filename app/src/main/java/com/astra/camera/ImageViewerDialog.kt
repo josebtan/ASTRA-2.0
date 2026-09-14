@@ -29,9 +29,20 @@ class ImageViewerDialog(
         setContentView(binding.root)
 
         if (file.extension.equals("dng", ignoreCase = true)) {
-            binding.imageView.zoomEnabled = false
-            binding.imageView.setImageResource(R.drawable.ic_manual)
-            binding.tvRawNote.visibility = android.view.View.VISIBLE
+            val preview = RawImagePreview.loadPreview(file)
+            if (preview != null) {
+                binding.imageView.zoomEnabled = true
+                binding.imageView.setImageBitmap(preview)
+                binding.tvRawNote.setText(R.string.raw_preview_note)
+                binding.tvRawNote.visibility = android.view.View.VISIBLE
+            } else {
+                // Caso poco común: el DNG no trae vista previa embebida y el
+                // dispositivo tampoco puede decodificarlo directamente.
+                binding.imageView.zoomEnabled = false
+                binding.imageView.setImageResource(R.drawable.ic_manual)
+                binding.tvRawNote.setText(R.string.raw_preview_unavailable)
+                binding.tvRawNote.visibility = android.view.View.VISIBLE
+            }
         } else {
             binding.imageView.zoomEnabled = true
             binding.imageView.setImageURI(Uri.fromFile(file))

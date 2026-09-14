@@ -21,4 +21,19 @@
         android:visibility="gone"
         android:contentDescription="@null" />
 
+    <TextView
+        android:id="@+id/tvRawBadge"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|start"
+        android:layout_margin="4dp"
+        android:background="@drawable/bg_raw_badge"
+        android:paddingHorizontal="5dp"
+        android:paddingVertical="2dp"
+        android:text="RAW"
+        android:textColor="@color/astra_white"
+        android:textSize="9sp"
+        android:textStyle="bold"
+        android:visibility="gone" />
+
 </FrameLayout>

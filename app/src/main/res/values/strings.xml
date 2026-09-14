@@ -20,6 +20,8 @@
     <string name="manual_reset">Restablecer</string>
     <string name="manual_not_supported">Este dispositivo no soporta ajuste manual de ISO</string>
     <string name="raw_not_supported">Este dispositivo no soporta captura RAW, se usará JPEG</string>
+    <string name="raw_preview_note">Vista previa extraída del RAW (.dng). El archivo original conserva todos los datos sin procesar.</string>
+    <string name="raw_preview_unavailable">Archivo RAW (.dng). No se pudo generar una vista previa en este dispositivo, pero puedes eliminarlo o abrirlo con una app compatible con RAW.</string>
     <string name="auto_label">AUTO</string>
 
     <!-- Menú de modos: barra de pestañas -->

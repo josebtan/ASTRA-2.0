@@ -59,6 +59,7 @@ dependencies {
     implementation("androidx.constraintlayout:constraintlayout:2.1.4")
     implementation("androidx.recyclerview:recyclerview:1.3.2")
     implementation("androidx.transition:transition:1.5.0")
+    implementation("androidx.exifinterface:exifinterface:1.3.7")
 
     // CameraX
     val cameraxVersion = "1.5.0"

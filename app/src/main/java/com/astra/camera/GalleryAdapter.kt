@@ -25,12 +25,22 @@ class GalleryAdapter(
 
     override fun onBindViewHolder(holder: ImageViewHolder, position: Int) {
         val file = images[position]
+        holder.binding.tvRawBadge.visibility = View.GONE
         when {
             file.extension.equals("dng", ignoreCase = true) -> {
-                // Los archivos RAW no se pueden decodificar como bitmap normal.
-                holder.binding.imageView.scaleType = android.widget.ImageView.ScaleType.CENTER_INSIDE
-                holder.binding.imageView.setImageResource(R.drawable.ic_manual)
+                val preview = RawImagePreview.loadPreview(file)
+                if (preview != null) {
+                    holder.binding.imageView.scaleType = android.widget.ImageView.ScaleType.CENTER_CROP
+                    holder.binding.imageView.setImageBitmap(preview)
+                } else {
+                    // Sin vista previa embebida disponible: se muestra un ícono
+                    // en su lugar (caso poco común, pero posible en algunos
+                    // dispositivos/DNGs).
+                    holder.binding.imageView.scaleType = android.widget.ImageView.ScaleType.CENTER_INSIDE
+                    holder.binding.imageView.setImageResource(R.drawable.ic_manual)
+                }
                 holder.binding.ivPlayOverlay.visibility = View.GONE
+                holder.binding.tvRawBadge.visibility = View.VISIBLE
             }
             file.extension.equals("mp4", ignoreCase = true) -> {
                 holder.binding.imageView.scaleType = android.widget.ImageView.ScaleType.CENTER_CROP
