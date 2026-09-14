@@ -17,13 +17,13 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Configurar JDK 17
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: 'temurin'
           java-version: '17'
 
       - name: Configurar Android SDK
-        uses: android-actions/setup-android@v3
+        uses: android-actions/setup-android@v4
 
       - name: Configurar Gradle
         uses: gradle/actions/setup-gradle@v4
@@ -50,13 +50,13 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Configurar JDK 17
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: 'temurin'
           java-version: '17'
 
       - name: Configurar Android SDK
-        uses: android-actions/setup-android@v3
+        uses: android-actions/setup-android@v4
 
       - name: Configurar Gradle
         uses: gradle/actions/setup-gradle@v4
@@ -85,13 +85,13 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Configurar JDK 17
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: 'temurin'
           java-version: '17'
 
       - name: Configurar Android SDK
-        uses: android-actions/setup-android@v3
+        uses: android-actions/setup-android@v4
 
       - name: Configurar Gradle
         uses: gradle/actions/setup-gradle@v4
