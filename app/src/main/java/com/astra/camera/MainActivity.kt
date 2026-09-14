@@ -123,6 +123,9 @@ class MainActivity : AppCompatActivity() {
     // --- Orientación física del teléfono ---
     private var currentRotation = Surface.ROTATION_0
     private lateinit var orientationEventListener: OrientationEventListener
+    // Evita solapar una transición de reposicionamiento del menú con otra
+    // que empiece antes de que la primera termine su animación (250ms).
+    private var isRepositioningModesMenu = false
 
     private lateinit var outputDirectory: File
 
@@ -1228,6 +1231,18 @@ class MainActivity : AppCompatActivity() {
      * compensación (no en la contraria) para verse derechos al usuario.
      */
     private fun rotateControls(rotation: Int) {
+        try {
+            rotateControlsUnsafe(rotation)
+        } catch (e: Exception) {
+            // Nunca dejar que un error al reposicionar el menú al girar el
+            // teléfono tumbe toda la app: en el peor caso, un control se
+            // queda mal ubicado o sin rotar hasta el próximo giro, pero la
+            // app sigue funcionando.
+            Log.e(TAG, "Error al reposicionar la UI para rotation=$rotation", e)
+        }
+    }
+
+    private fun rotateControlsUnsafe(rotation: Int) {
         val degrees = when (rotation) {
             Surface.ROTATION_90 -> 90f
             Surface.ROTATION_180 -> 180f
@@ -1285,53 +1300,81 @@ class MainActivity : AppCompatActivity() {
      * Reestructurando el ancho/alto real de la barra se evita ese problema.
      */
     private fun repositionModesMenu(rotation: Int) {
+        // Si ya hay una transición de reposicionamiento en curso (la animación
+        // dura 250ms), se ignora este llamado en vez de solaparla con otra:
+        // el próximo cambio de orientación real la disparará de nuevo.
+        if (isRepositioningModesMenu) return
+
         val sideBarId = binding.modesTabBar.id
         val bottomBarId = binding.bottomBar.id
         val topBarId = binding.topBar.id
         val isSideways = rotation == Surface.ROTATION_90 || rotation == Surface.ROTATION_270
 
-        val constraintSet = ConstraintSet()
-        constraintSet.clone(binding.root)
+        try {
+            isRepositioningModesMenu = true
 
-        // Se inicia la transición ANTES de aplicar cualquier cambio (tanto el
-        // ConstraintSet como el reordenamiento del LinearLayout interno), para
-        // que el sistema capture el estado "antes" y anime ambos a la vez.
-        TransitionManager.beginDelayedTransition(binding.root, AutoTransition().setDuration(250))
+            val constraintSet = ConstraintSet()
+            constraintSet.clone(binding.root)
 
-        if (isSideways) {
-            constraintSet.constrainWidth(sideBarId, dpToPx(MODES_SIDE_BAR_SIZE_DP))
-            constraintSet.constrainHeight(sideBarId, 0)
-            constraintSet.clear(sideBarId, ConstraintSet.START)
-            constraintSet.clear(sideBarId, ConstraintSet.END)
-            constraintSet.connect(sideBarId, ConstraintSet.TOP, topBarId, ConstraintSet.BOTTOM)
-            constraintSet.connect(sideBarId, ConstraintSet.BOTTOM, ConstraintSet.PARENT_ID, ConstraintSet.BOTTOM)
-            if (rotation == Surface.ROTATION_90) {
-                // El teléfono se giró de forma que el lado de gravedad quedó a
-                // la derecha de la pantalla en coordenadas fijas de la app.
-                constraintSet.connect(sideBarId, ConstraintSet.END, ConstraintSet.PARENT_ID, ConstraintSet.END)
+            // Se inicia la transición ANTES de aplicar cualquier cambio (tanto el
+            // ConstraintSet como el reordenamiento del LinearLayout interno), para
+            // que el sistema capture el estado "antes" y anime ambos a la vez.
+            val transition = AutoTransition().setDuration(250)
+            transition.addListener(object : androidx.transition.Transition.TransitionListener {
+                override fun onTransitionStart(t: androidx.transition.Transition) = Unit
+                override fun onTransitionEnd(t: androidx.transition.Transition) {
+                    isRepositioningModesMenu = false
+                }
+                override fun onTransitionCancel(t: androidx.transition.Transition) {
+                    isRepositioningModesMenu = false
+                }
+                override fun onTransitionPause(t: androidx.transition.Transition) = Unit
+                override fun onTransitionResume(t: androidx.transition.Transition) = Unit
+            })
+            TransitionManager.beginDelayedTransition(binding.root, transition)
+            // Red de seguridad: si por algún motivo el listener de la
+            // transición nunca se dispara, esto evita que isRepositioningModesMenu
+            // quede bloqueado en true para siempre (lo que congelaría el menú).
+            binding.root.postDelayed({ isRepositioningModesMenu = false }, 500L)
+
+            if (isSideways) {
+                constraintSet.constrainWidth(sideBarId, dpToPx(MODES_SIDE_BAR_SIZE_DP))
+                constraintSet.constrainHeight(sideBarId, 0)
+                constraintSet.clear(sideBarId, ConstraintSet.START)
+                constraintSet.clear(sideBarId, ConstraintSet.END)
+                constraintSet.connect(sideBarId, ConstraintSet.TOP, topBarId, ConstraintSet.BOTTOM)
+                constraintSet.connect(sideBarId, ConstraintSet.BOTTOM, ConstraintSet.PARENT_ID, ConstraintSet.BOTTOM)
+                if (rotation == Surface.ROTATION_90) {
+                    // El teléfono se giró de forma que el lado de gravedad quedó a
+                    // la derecha de la pantalla en coordenadas fijas de la app.
+                    constraintSet.connect(sideBarId, ConstraintSet.END, ConstraintSet.PARENT_ID, ConstraintSet.END)
+                } else {
+                    constraintSet.connect(sideBarId, ConstraintSet.START, ConstraintSet.PARENT_ID, ConstraintSet.START)
+                }
+
+                constraintSet.clear(bottomBarId, ConstraintSet.BOTTOM)
+                constraintSet.connect(bottomBarId, ConstraintSet.BOTTOM, ConstraintSet.PARENT_ID, ConstraintSet.BOTTOM)
+
+                setModesTabBarVertical(true)
             } else {
+                constraintSet.constrainWidth(sideBarId, 0)
+                constraintSet.constrainHeight(sideBarId, dpToPx(MODES_SIDE_BAR_SIZE_DP))
+                constraintSet.clear(sideBarId, ConstraintSet.TOP)
                 constraintSet.connect(sideBarId, ConstraintSet.START, ConstraintSet.PARENT_ID, ConstraintSet.START)
+                constraintSet.connect(sideBarId, ConstraintSet.END, ConstraintSet.PARENT_ID, ConstraintSet.END)
+                constraintSet.connect(sideBarId, ConstraintSet.BOTTOM, ConstraintSet.PARENT_ID, ConstraintSet.BOTTOM)
+
+                constraintSet.clear(bottomBarId, ConstraintSet.BOTTOM)
+                constraintSet.connect(bottomBarId, ConstraintSet.BOTTOM, sideBarId, ConstraintSet.TOP)
+
+                setModesTabBarVertical(false)
             }
 
-            constraintSet.clear(bottomBarId, ConstraintSet.BOTTOM)
-            constraintSet.connect(bottomBarId, ConstraintSet.BOTTOM, ConstraintSet.PARENT_ID, ConstraintSet.BOTTOM)
-
-            setModesTabBarVertical(true)
-        } else {
-            constraintSet.constrainWidth(sideBarId, 0)
-            constraintSet.constrainHeight(sideBarId, dpToPx(MODES_SIDE_BAR_SIZE_DP))
-            constraintSet.clear(sideBarId, ConstraintSet.TOP)
-            constraintSet.connect(sideBarId, ConstraintSet.START, ConstraintSet.PARENT_ID, ConstraintSet.START)
-            constraintSet.connect(sideBarId, ConstraintSet.END, ConstraintSet.PARENT_ID, ConstraintSet.END)
-            constraintSet.connect(sideBarId, ConstraintSet.BOTTOM, ConstraintSet.PARENT_ID, ConstraintSet.BOTTOM)
-
-            constraintSet.clear(bottomBarId, ConstraintSet.BOTTOM)
-            constraintSet.connect(bottomBarId, ConstraintSet.BOTTOM, sideBarId, ConstraintSet.TOP)
-
-            setModesTabBarVertical(false)
+            constraintSet.applyTo(binding.root)
+        } catch (e: Exception) {
+            Log.e(TAG, "Error al reposicionar el menu de modos para rotation=$rotation", e)
+            isRepositioningModesMenu = false
         }
-
-        constraintSet.applyTo(binding.root)
     }
 
     /**
@@ -1346,7 +1389,10 @@ class MainActivity : AppCompatActivity() {
 
         val tabs = listOf(binding.tabNormal, binding.tabManual, binding.tabTimelapse, binding.tabAstro)
         tabs.forEach { tab ->
-            val params = tab.layoutParams as LinearLayout.LayoutParams
+            // Cast seguro: si por algún motivo el layoutParams no fuera del
+            // tipo esperado, se omite ese tab en vez de lanzar una
+            // ClassCastException que tumbaría toda la app.
+            val params = tab.layoutParams as? LinearLayout.LayoutParams ?: return@forEach
             if (vertical) {
                 params.width = LinearLayout.LayoutParams.MATCH_PARENT
                 params.height = 0
