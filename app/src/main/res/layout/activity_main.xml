@@ -565,6 +565,95 @@
                     android:text="@string/astro_note"
                     android:textColor="@color/astra_gray"
                     android:textSize="11sp" />
+
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="1dp"
+                    android:layout_marginVertical="14dp"
+                    android:background="@color/astra_divider" />
+
+                <!-- ===== Apilado de imágenes (Stacking) ===== -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical">
+
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="@string/astro_stacking_label"
+                        android:textColor="@color/astra_white"
+                        android:textStyle="bold"
+                        android:textSize="13sp" />
+
+                    <androidx.appcompat.widget.SwitchCompat
+                        android:id="@+id/switchAstroStacking"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content" />
+                </LinearLayout>
+
+                <LinearLayout
+                    android:id="@+id/groupAstroStackingOptions"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:visibility="gone"
+                    tools:visibility="visible">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:layout_marginTop="12dp">
+
+                        <TextView
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="@string/astro_stacking_shots_label"
+                            android:textColor="@color/astra_white"
+                            android:textStyle="bold"
+                            android:textSize="13sp" />
+
+                        <TextView
+                            android:id="@+id/tvAstroStackShots"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="10"
+                            android:textColor="@color/astra_accent"
+                            android:textStyle="bold"
+                            android:textSize="13sp" />
+                    </LinearLayout>
+
+                    <SeekBar
+                        android:id="@+id/seekAstroStackShots"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:max="48"
+                        android:progress="8"
+                        android:progressTint="@color/astra_accent"
+                        android:thumbTint="@color/astra_accent" />
+
+                    <TextView
+                        android:id="@+id/tvAstroStackStatus"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:text="@string/astro_stacking_status_idle"
+                        android:textColor="@color/astra_accent"
+                        android:textSize="12sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="6dp"
+                        android:text="@string/astro_stacking_note"
+                        android:textColor="@color/astra_gray"
+                        android:textSize="11sp" />
+                </LinearLayout>
             </LinearLayout>
 
         </LinearLayout>

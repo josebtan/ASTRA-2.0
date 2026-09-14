@@ -81,6 +81,16 @@ class MainActivity : AppCompatActivity() {
     private var astroExposureNs: Long? = null // null = automático
     private var astroNoiseReductionOff = false
 
+    // --- Apilado de imágenes (Stacking, dentro de Astro) ---
+    private var astroStackingEnabled = false
+    private var astroStackTargetShots = 10
+    private var astroStackShotsTaken = 0
+    private var isAstroStackingRunning = false
+    private var astroStackCaptureInFlight = false
+    // Carpeta temporal (caché de la app) donde se guardan los fotogramas de
+    // la sesión de stacking en curso, antes de promediarlos en una imagen final.
+    private var astroStackFramesDir: File? = null
+
     // --- Timelapse ---
     private var timelapseIntervalSeconds = 5
     private var timelapseTotalShots = 0 // 0 = infinito, hasta detener manualmente
@@ -159,6 +169,7 @@ class MainActivity : AppCompatActivity() {
         super.onPause()
         orientationEventListener.disable()
         if (isTimelapseRunning) stopTimelapse()
+        if (isAstroStackingRunning) stopAstroStacking()
     }
 
     private fun hasCameraPermission() =
@@ -377,6 +388,9 @@ class MainActivity : AppCompatActivity() {
 
         if (isTimelapseRunning && currentMode != CameraMode.TIMELAPSE) {
             stopTimelapse()
+        }
+        if (isAstroStackingRunning && currentMode != CameraMode.ASTRO) {
+            stopAstroStacking()
         }
 
         updateModesUi()
@@ -787,6 +801,24 @@ class MainActivity : AppCompatActivity() {
             astroNoiseReductionOff = !isChecked
             if (currentMode == CameraMode.ASTRO) bindCameraUseCases()
         }
+
+        binding.switchAstroStacking.setOnCheckedChangeListener { _, isChecked ->
+            astroStackingEnabled = isChecked
+            binding.groupAstroStackingOptions.visibility = if (isChecked) View.VISIBLE else View.GONE
+            if (!isChecked && isAstroStackingRunning) stopAstroStacking()
+        }
+
+        binding.seekAstroStackShots.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(seekBar: SeekBar, progress: Int, fromUser: Boolean) {
+                astroStackTargetShots = progress + 2 // 2..50 fotos
+                binding.tvAstroStackShots.text = astroStackTargetShots.toString()
+            }
+
+            override fun onStartTrackingTouch(seekBar: SeekBar) = Unit
+            override fun onStopTrackingTouch(seekBar: SeekBar) = Unit
+        })
+        binding.tvAstroStackShots.text = astroStackTargetShots.toString()
+        updateAstroStackStatus()
     }
 
     private fun formatExposureSeconds(exposureNs: Long): String {
@@ -832,6 +864,154 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    // --- Apilado de imágenes (Stacking): toma varias fotos consecutivas con
+    // la misma exposición y las promedia para reducir el ruido. ---
+
+    private fun toggleAstroStacking() {
+        if (isAstroStackingRunning) stopAstroStacking() else startAstroStacking()
+    }
+
+    private fun startAstroStacking() {
+        if (imageCapture == null) return
+        // Carpeta temporal en la caché de la app (no visible en la galería):
+        // los fotogramas se guardan aquí y se borran en cuanto se genera la
+        // imagen apilada final.
+        astroStackFramesDir = File(cacheDir, "astra_stack_${System.currentTimeMillis()}").apply { mkdirs() }
+        isAstroStackingRunning = true
+        astroStackCaptureInFlight = false
+        astroStackShotsTaken = 0
+        binding.btnCapture.isSelected = true
+        updateAstroStackStatus()
+        captureNextStackFrame()
+    }
+
+    /**
+     * Captura un único fotograma del stacking. Igual que en el timelapse,
+     * SIEMPRE se espera a que la captura asíncrona termine (onImageSaved/
+     * onError) antes de programar el siguiente fotograma o de procesar el
+     * resultado final, para no perder el último fotograma ni empezar a
+     * apilar antes de que todos los archivos terminen de escribirse.
+     */
+    private fun captureNextStackFrame() {
+        if (!isAstroStackingRunning) return
+        val capture = imageCapture
+        val framesDir = astroStackFramesDir
+        if (capture == null || framesDir == null) {
+            stopAstroStacking()
+            return
+        }
+
+        val exposureNs = astroExposureNs
+        val isLongExposure = exposureNs != null && exposureNs >= LONG_EXPOSURE_THRESHOLD_NS
+        if (isLongExposure) {
+            showCaptureProgressOverlay(exposureNs!! / 1_000_000L)
+        }
+
+        astroStackCaptureInFlight = true
+        val frameFile = File(framesDir, "stack_${String.format(Locale.US, "%03d", astroStackShotsTaken)}.jpg")
+        val outputOptions = ImageCapture.OutputFileOptions.Builder(frameFile).build()
+
+        capture.takePicture(
+            outputOptions,
+            ContextCompat.getMainExecutor(this),
+            object : ImageCapture.OnImageSavedCallback {
+                override fun onError(exc: ImageCaptureException) {
+                    Log.e(TAG, "Error al capturar fotograma de stacking", exc)
+                    if (isLongExposure) hideCaptureProgressOverlay()
+                    onStackFrameFinished()
+                }
+
+                override fun onImageSaved(output: ImageCapture.OutputFileResults) {
+                    if (isLongExposure) hideCaptureProgressOverlay()
+                    onStackFrameFinished()
+                }
+            }
+        )
+    }
+
+    private fun onStackFrameFinished() {
+        astroStackCaptureInFlight = false
+        astroStackShotsTaken++
+        updateAstroStackStatus()
+
+        if (!isAstroStackingRunning) {
+            // El usuario pidió detener mientras este fotograma se estaba
+            // guardando: recién ahora que terminó de escribirse se procesa
+            // el stacking, así no se pierde el último fotograma.
+            buildStackedImageFromFrames()
+            return
+        }
+
+        if (astroStackShotsTaken >= astroStackTargetShots) {
+            stopAstroStacking()
+            return
+        }
+
+        captureNextStackFrame()
+    }
+
+    private fun stopAstroStacking() {
+        if (!isAstroStackingRunning) return
+        isAstroStackingRunning = false
+        binding.btnCapture.isSelected = false
+        // Si hay una captura en curso, es [onStackFrameFinished] quien
+        // procesará el stacking en cuanto esa foto termine de guardarse.
+        if (!astroStackCaptureInFlight) {
+            buildStackedImageFromFrames()
+        } else {
+            updateAstroStackStatus()
+        }
+    }
+
+    /**
+     * Toma todos los fotogramas guardados en la carpeta temporal de la
+     * sesión de stacking que acaba de terminar, los promedia en una única
+     * imagen y la guarda en la galería de la app. La carpeta temporal se
+     * elimina al terminar, haya tenido éxito o no.
+     */
+    private fun buildStackedImageFromFrames() {
+        val framesDir = astroStackFramesDir
+        astroStackFramesDir = null
+
+        val frameFiles = framesDir?.listFiles { f -> f.extension.equals("jpg", ignoreCase = true) }
+            ?.sortedBy { it.name }
+            ?: emptyList()
+
+        if (frameFiles.isEmpty()) {
+            framesDir?.deleteRecursively()
+            binding.tvAstroStackStatus.text = getString(R.string.astro_stacking_no_frames)
+            return
+        }
+
+        binding.tvAstroStackStatus.text = getString(R.string.astro_stacking_building, frameFiles.size)
+
+        val fileName = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(System.currentTimeMillis())
+        val outputImage = File(outputDirectory, "ASTRA_STACK_$fileName.jpg")
+
+        AstroStackBuilder.buildStackAsync(frameFiles, outputImage) { success ->
+            framesDir?.deleteRecursively()
+            if (isFinishing || isDestroyed) return@buildStackAsync
+
+            if (success) {
+                val message = getString(R.string.astro_stacking_saved, frameFiles.size)
+                binding.tvAstroStackStatus.text = message
+                Toast.makeText(this, message, Toast.LENGTH_LONG).show()
+                updateGalleryThumbnail()
+            } else {
+                binding.tvAstroStackStatus.text = getString(R.string.astro_stacking_error)
+                Toast.makeText(this, getString(R.string.astro_stacking_error), Toast.LENGTH_LONG).show()
+            }
+        }
+    }
+
+    private fun updateAstroStackStatus() {
+        binding.tvAstroStackStatus.text = if (isAstroStackingRunning) {
+            getString(R.string.astro_stacking_status_running, astroStackShotsTaken, astroStackTargetShots)
+        } else {
+            getString(R.string.astro_stacking_status_idle)
+        }
+    }
+
     // ============================================================
     // Captura
     // ============================================================
@@ -839,6 +1019,10 @@ class MainActivity : AppCompatActivity() {
     private fun onCaptureClicked() {
         if (currentMode == CameraMode.TIMELAPSE) {
             toggleTimelapse()
+            return
+        }
+        if (currentMode == CameraMode.ASTRO && astroStackingEnabled) {
+            toggleAstroStacking()
             return
         }
         if (timerSeconds == 0) {
@@ -1027,6 +1211,7 @@ class MainActivity : AppCompatActivity() {
         countDownTimer?.cancel()
         captureProgressTimer?.cancel()
         stopTimelapse()
+        stopAstroStacking()
     }
 
     companion object {

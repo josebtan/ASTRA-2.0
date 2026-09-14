@@ -45,6 +45,17 @@
     <string name="astro_noise_reduction_label">Reducción de ruido</string>
     <string name="astro_note">Recomendado usar trípode. La vista previa se mantiene fluida; solo la foto final usa la exposición larga configurada, por lo que puede tardar varios segundos en completarse.</string>
     <string name="astro_not_supported">Este dispositivo no soporta exposición manual larga; se usará el modo automático</string>
+
+    <!-- Apilado de imágenes (Stacking) en modo Astro -->
+    <string name="astro_stacking_label">Apilado de imágenes (Stacking)</string>
+    <string name="astro_stacking_shots_label">Número de fotos a apilar</string>
+    <string name="astro_stacking_note">Promedia varias exposiciones para reducir el ruido. Requiere trípode: la cámara no debe moverse entre fotos. Con stacking activado, el disparador inicia y detiene la secuencia.</string>
+    <string name="astro_stacking_status_idle">Activa el stacking y pulsa el disparador para empezar</string>
+    <string name="astro_stacking_status_running">Apilando: %1$d/%2$d fotos</string>
+    <string name="astro_stacking_building">Procesando %1$d fotos…</string>
+    <string name="astro_stacking_saved">Imagen apilada guardada en la galería (%1$d fotos) ✓</string>
+    <string name="astro_stacking_error">Error al generar la imagen apilada</string>
+    <string name="astro_stacking_no_frames">No se capturó ninguna foto</string>
     <string name="capture_long_exposure_label">Exposición larga en curso…</string>
     <string name="capture_processing">Procesando…</string>
 
