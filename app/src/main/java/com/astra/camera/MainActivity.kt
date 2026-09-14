@@ -1211,6 +1211,14 @@ class MainActivity : AppCompatActivity() {
      * mantengan legibles sin importar si el teléfono está en vertical (arriba,
      * abajo) o en horizontal (hacia la izquierda o hacia la derecha).
      *
+     * Incluye: iconos/etiquetas de flash y temporizador, las pestañas de modo
+     * (icono+etiqueta+indicador como una sola unidad), los valores actuales
+     * de los submenús de parámetros (ISO, exposición, contraste, intervalo,
+     * FPS, número de fotos) y los mensajes/pills que aparecen sobre la
+     * previsualización durante una captura (cuenta regresiva, contador de
+     * timelapse/stacking). Los SeekBar NO se rotan a propósito: un slider
+     * girado 90° deja de ser utilizable con el pulgar.
+     *
      * `Surface.ROTATION_*` representa la rotación aplicada por el sistema para
      * compensar el giro físico del teléfono, en dirección opuesta a dicho giro.
      * Por eso los controles deben rotar en la MISMA dirección que esa
@@ -1229,7 +1237,28 @@ class MainActivity : AppCompatActivity() {
             binding.tvFlashLabel,
             binding.tvTimerLabel,
             binding.btnGallery,
-            binding.btnSwitchCamera
+            binding.btnSwitchCamera,
+            // Pestañas de modos (icono + etiqueta + indicador, como una sola unidad)
+            binding.tabNormal,
+            binding.tabManual,
+            binding.tabTimelapse,
+            binding.tabAstro,
+            // Valores de los submenús de parámetros (Manual / Timelapse / Astro)
+            binding.tvIsoValue,
+            binding.tvExposureValue,
+            binding.tvContrastValue,
+            binding.tvTimelapseInterval,
+            binding.tvTimelapseShots,
+            binding.tvTimelapseFps,
+            binding.tvAstroIso,
+            binding.tvAstroExposure,
+            binding.tvAstroStackShots,
+            // Mensajes/pills que aparecen sobre la previsualización durante una captura
+            binding.tvCountdown,
+            binding.tvCaptureCountdown,
+            binding.tvTimelapseInfoShots,
+            binding.tvTimelapseInfoDuration,
+            binding.tvAstroStackInfo
         )
 
         controls.forEach { view ->

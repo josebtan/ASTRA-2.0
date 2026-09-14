@@ -160,12 +160,11 @@ object TimelapseVideoBuilder {
         val frameDurationUs = 1_000_000L / safeFrameRate
         var presentationTimeUs = 0L
 
-        fun drainEncoder(endOfStream: Boolean) {
-            if (endOfStream) encoder.signalEndOfInputStream()
+        fun drainEncoder(blockUntilEos: Boolean) {
             while (true) {
                 val outIndex = encoder.dequeueOutputBuffer(bufferInfo, DEQUEUE_TIMEOUT_US)
                 when {
-                    outIndex == MediaCodec.INFO_TRY_AGAIN_LATER -> if (!endOfStream) return
+                    outIndex == MediaCodec.INFO_TRY_AGAIN_LATER -> if (!blockUntilEos) return
                     outIndex == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED -> {
                         trackIndex = muxer.addTrack(encoder.outputFormat)
                         muxer.start()
@@ -236,6 +235,26 @@ object TimelapseVideoBuilder {
                 if (frameIndex % 20 == 0) {
                     Log.d(TAG, "Codificado fotograma $frameIndex de ${frameFiles.size}")
                 }
+            }
+            // Fin del stream: en modo ByteBuffer (sin Surface de entrada) esto
+            // se señala encolando un último buffer de entrada VACÍO con el
+            // flag BUFFER_FLAG_END_OF_STREAM — signalEndOfInputStream() no es
+            // válido aquí porque es exclusivo del modo con Surface.
+            var eosQueued = false
+            var eosWaitAttempts = 0
+            while (!eosQueued) {
+                val inputIndex = encoder.dequeueInputBuffer(DEQUEUE_TIMEOUT_US)
+                if (inputIndex >= 0) {
+                    encoder.queueInputBuffer(inputIndex, 0, 0, presentationTimeUs, MediaCodec.BUFFER_FLAG_END_OF_STREAM)
+                    eosQueued = true
+                    Log.d(TAG, "Buffer de fin de stream encolado")
+                } else {
+                    eosWaitAttempts++
+                    if (eosWaitAttempts > 500) {
+                        throw IllegalStateException("El encoder no liberó ningún input buffer para señalar el fin del stream")
+                    }
+                }
+                drainEncoder(false)
             }
             drainEncoder(true)
             Log.d(TAG, "Codificación completa, muxerStarted=$muxerStarted")
