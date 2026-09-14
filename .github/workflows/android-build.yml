@@ -24,6 +24,8 @@ jobs:
 
       - name: Configurar Android SDK
         uses: android-actions/setup-android@v4
+        with:
+          cmdline-tools-version: '10406996' # 11.0, la misma que usaba @v3 (el default de @v4, 20.0, causaba un fallo distinto en este runner)
 
       - name: Configurar Gradle
         uses: gradle/actions/setup-gradle@v4
@@ -57,6 +59,8 @@ jobs:
 
       - name: Configurar Android SDK
         uses: android-actions/setup-android@v4
+        with:
+          cmdline-tools-version: '10406996' # 11.0, la misma que usaba @v3 (el default de @v4, 20.0, causaba un fallo distinto en este runner)
 
       - name: Configurar Gradle
         uses: gradle/actions/setup-gradle@v4
@@ -92,6 +96,8 @@ jobs:
 
       - name: Configurar Android SDK
         uses: android-actions/setup-android@v4
+        with:
+          cmdline-tools-version: '10406996' # 11.0, la misma que usaba @v3 (el default de @v4, 20.0, causaba un fallo distinto en este runner)
 
       - name: Configurar Gradle
         uses: gradle/actions/setup-gradle@v4
