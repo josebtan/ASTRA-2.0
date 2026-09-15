@@ -32,6 +32,12 @@ object TimelapseVideoBuilder {
     private const val BIT_RATE = 6_000_000
     private const val I_FRAME_INTERVAL = 1
     private const val DEQUEUE_TIMEOUT_US = 10_000L
+    // Intentos máximos esperando al encoder en cada etapa, a ~10ms cada uno.
+    // Se dan generosos ~30s: esto corre en un hilo de fondo (no bloquea la
+    // UI), y algunos encoders de hardware son bastante más lentos que otros
+    // para vaciar su buffer interno, sobre todo al señalar el fin del stream.
+    private const val EOS_MAX_WAIT_ATTEMPTS = 3000
+    private const val INPUT_BUFFER_MAX_WAIT_ATTEMPTS = 1500
 
     // La foto de la cámara puede tener 12MP o más (p. ej. 4032x3024), una
     // resolución que muchísimos encoders de hardware simplemente no soportan
@@ -168,16 +174,22 @@ object TimelapseVideoBuilder {
                     outIndex == MediaCodec.INFO_TRY_AGAIN_LATER -> {
                         if (!blockUntilEos) return
                         waitAttempts++
-                        if (waitAttempts > 500) {
-                            // ~5s sin recibir el buffer de fin de stream: el
-                            // encoder está atascado. Mejor abortar con un
-                            // error claro que colgar la app indefinidamente
-                            // (esto es justo lo que causaba que el timelapse
-                            // se quedara para siempre en "generando video").
-                            throw IllegalStateException(
-                                "El encoder nunca devolvió el buffer de salida con BUFFER_FLAG_END_OF_STREAM " +
-                                    "tras $waitAttempts intentos (~5s); posible cuelgue del encoder de hardware"
+                        if (waitAttempts > EOS_MAX_WAIT_ATTEMPTS) {
+                            // El encoder nunca devolvió el buffer de fin de stream
+                            // (pasa en algunos dispositivos/encoders de hardware
+                            // más lentos). En vez de fallar todo el video, se
+                            // finaliza aquí con lo que ya se codificó: todos los
+                            // fotogramas reales ya se drenaron incrementalmente
+                            // durante el bucle principal (justo abajo), así que
+                            // como mucho se pierden uno o dos fotogramas del
+                            // buffer interno de reordenamiento del encoder, no
+                            // el video completo.
+                            Log.w(
+                                TAG,
+                                "El encoder no devolvió BUFFER_FLAG_END_OF_STREAM tras $waitAttempts intentos " +
+                                    "(~${waitAttempts * DEQUEUE_TIMEOUT_US / 1000}ms); se finaliza el video con lo ya codificado"
                             )
+                            return
                         }
                     }
                     outIndex == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED -> {
@@ -235,10 +247,11 @@ object TimelapseVideoBuilder {
                         queued = true
                     } else {
                         waitAttempts++
-                        if (waitAttempts > 500) {
-                            // ~5s sin conseguir un input buffer libre: el encoder
-                            // está atascado, mejor abortar con un error claro que
-                            // colgar la app indefinidamente.
+                        if (waitAttempts > INPUT_BUFFER_MAX_WAIT_ATTEMPTS) {
+                            // El encoder está realmente atascado (no solo lento):
+                            // esto ocurre a mitad de la codificación, no al final,
+                            // así que aquí sí se aborta con un error claro en vez
+                            // de intentar continuar con datos parciales.
                             throw IllegalStateException(
                                 "El encoder no liberó ningún input buffer tras $waitAttempts intentos " +
                                     "(fotograma $frameIndex de ${frameFiles.size})"
@@ -265,7 +278,7 @@ object TimelapseVideoBuilder {
                     Log.d(TAG, "Buffer de fin de stream encolado")
                 } else {
                     eosWaitAttempts++
-                    if (eosWaitAttempts > 500) {
+                    if (eosWaitAttempts > INPUT_BUFFER_MAX_WAIT_ATTEMPTS) {
                         throw IllegalStateException("El encoder no liberó ningún input buffer para señalar el fin del stream")
                     }
                 }

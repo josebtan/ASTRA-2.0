@@ -454,6 +454,30 @@ class MainActivity : AppCompatActivity() {
         binding.indicatorManual.visibility = if (currentMode == CameraMode.MANUAL) View.VISIBLE else View.INVISIBLE
         binding.indicatorTimelapse.visibility = if (currentMode == CameraMode.TIMELAPSE) View.VISIBLE else View.INVISIBLE
         binding.indicatorAstro.visibility = if (currentMode == CameraMode.ASTRO) View.VISIBLE else View.INVISIBLE
+
+        // Los valores del submenú recién hecho visible pueden haber "perdido"
+        // la rotación aplicada mientras estaban en GONE (algunos fabricantes
+        // no conservan bien transformaciones de vistas no medidas). Se
+        // reaplica aquí, de forma inmediata (sin animar), usando la rotación
+        // física actual del teléfono.
+        applyCurrentRotationToSubmenuValues()
+    }
+
+    /** Rotación (en grados) que corresponde a la orientación física actual del teléfono. */
+    private fun currentRotationDegrees(): Float = when (currentRotation) {
+        Surface.ROTATION_90 -> 90f
+        Surface.ROTATION_180 -> 180f
+        Surface.ROTATION_270 -> -90f
+        else -> 0f
+    }
+
+    private fun applyCurrentRotationToSubmenuValues() {
+        val degrees = currentRotationDegrees()
+        listOf(
+            binding.tvIsoValue, binding.tvExposureValue, binding.tvContrastValue,
+            binding.tvTimelapseInterval, binding.tvTimelapseShots, binding.tvTimelapseFps,
+            binding.tvAstroIso, binding.tvAstroExposure, binding.tvAstroStackShots
+        ).forEach { it.rotation = degrees }
     }
 
     // --- Submenú Manual: ISO, exposición, contraste, RAW ---

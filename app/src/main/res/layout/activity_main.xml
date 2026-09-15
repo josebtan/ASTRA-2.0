@@ -155,6 +155,7 @@
         android:layout_marginHorizontal="16dp"
         android:layout_marginBottom="12dp"
         android:visibility="gone"
+        android:clipChildren="false"
         app:layout_constraintTop_toBottomOf="@id/topBar"
         app:layout_constraintBottom_toTopOf="@id/bottomBar"
         app:layout_constraintStart_toStartOf="parent"
@@ -165,6 +166,7 @@
 
         <LinearLayout
             android:id="@+id/panelModes"
+                android:clipChildren="false"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical"
@@ -174,6 +176,7 @@
             <!-- ===== Manual: ISO, exposición, contraste, RAW ===== -->
             <LinearLayout
                 android:id="@+id/contentManual"
+                android:clipChildren="false"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
@@ -183,6 +186,7 @@
                 <!-- ISO -->
                 <LinearLayout
                     android:id="@+id/rowIso"
+                    android:clipChildren="false"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:orientation="horizontal">
@@ -216,6 +220,7 @@
                 <!-- Exposición -->
                 <LinearLayout
                     android:id="@+id/rowExposure"
+                    android:clipChildren="false"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:orientation="horizontal"
@@ -250,6 +255,7 @@
                 <!-- Contraste -->
                 <LinearLayout
                     android:id="@+id/rowContrast"
+                    android:clipChildren="false"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:orientation="horizontal"
@@ -333,6 +339,7 @@
             <!-- ===== Timelapse: intervalo, número de fotos, iniciar/detener ===== -->
             <LinearLayout
                 android:id="@+id/contentTimelapse"
+                android:clipChildren="false"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
@@ -342,6 +349,7 @@
                 <!-- Intervalo -->
                 <LinearLayout
                     android:id="@+id/rowTimelapseInterval"
+                    android:clipChildren="false"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:orientation="horizontal">
@@ -377,6 +385,7 @@
                 <!-- Número de fotos -->
                 <LinearLayout
                     android:id="@+id/rowTimelapseShots"
+                    android:clipChildren="false"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:orientation="horizontal"
@@ -413,6 +422,7 @@
                 <!-- Velocidad (FPS) del video final -->
                 <LinearLayout
                     android:id="@+id/rowTimelapseFps"
+                    android:clipChildren="false"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:orientation="horizontal"
@@ -468,6 +478,7 @@
             <!-- ===== Astrofotografía: ISO alto + exposición larga ===== -->
             <LinearLayout
                 android:id="@+id/contentAstro"
+                android:clipChildren="false"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
@@ -477,6 +488,7 @@
                 <!-- ISO astro -->
                 <LinearLayout
                     android:id="@+id/rowAstroIso"
+                    android:clipChildren="false"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:orientation="horizontal"
@@ -511,6 +523,7 @@
                 <!-- Tiempo de exposición astro -->
                 <LinearLayout
                     android:id="@+id/rowAstroExposure"
+                    android:clipChildren="false"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:orientation="horizontal"
@@ -604,6 +617,7 @@
 
                 <LinearLayout
                     android:id="@+id/groupAstroStackingOptions"
+                android:clipChildren="false"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:orientation="vertical"
@@ -612,6 +626,7 @@
 
                     <LinearLayout
                         android:id="@+id/rowAstroStackShots"
+                    android:clipChildren="false"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:orientation="horizontal"
