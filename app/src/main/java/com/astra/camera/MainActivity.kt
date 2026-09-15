@@ -472,19 +472,18 @@ class MainActivity : AppCompatActivity() {
 
     /**
      * Rota los valores compactos de los submenús (ISO, exposición, contraste,
-     * intervalo, fps, número de fotos) con la misma técnica simple y ya
-     * comprobada que usan los chips y las pestañas (View.animate().rotation()
-     * directo sobre el TextView) — nada de ViewGroups personalizados con
-     * medición dinámica. Las filas correspondientes (rowIso, rowExposure,
-     * etc.) tienen un minHeight fijo en el layout para que quepa el valor
-     * girado 90° sin recortarse ni solapar la fila vecina.
+     * intervalo, fps, número de fotos) usando [RotatableLayout]: un
+     * contenedor real que intercambia ancho/alto al medirse, así el panel
+     * reserva el espacio girado de verdad (en vez de solo rotar el texto
+     * suelto dejando su "hueco" original sin rotar, que es lo que recortaba
+     * o solapaba la fila vecina).
      */
     private fun rotateSubmenuValues(degrees: Float) {
         listOf(
-            binding.tvIsoValue, binding.tvExposureValue, binding.tvContrastValue,
-            binding.tvTimelapseInterval, binding.tvTimelapseShots, binding.tvTimelapseFps,
-            binding.tvAstroIso, binding.tvAstroExposure, binding.tvAstroStackShots
-        ).forEach { it.animate().rotation(degrees).setDuration(250).start() }
+            binding.rotIsoValue, binding.rotExposureValue, binding.rotContrastValue,
+            binding.rotTimelapseInterval, binding.rotTimelapseShots, binding.rotTimelapseFps,
+            binding.rotAstroIso, binding.rotAstroExposure, binding.rotAstroStackShots
+        ).forEach { it.angle = degrees }
     }
 
     // --- Submenú Manual: ISO, exposición, contraste, RAW ---
