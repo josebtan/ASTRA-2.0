@@ -1054,22 +1054,31 @@ class MainActivity : AppCompatActivity() {
     // ============================================================
 
     private fun onCaptureClicked() {
-        if (currentMode == CameraMode.TIMELAPSE) {
+        // Detener una captura en curso (timelapse o stacking) es siempre
+        // inmediato: el temporizador solo tiene sentido al INICIAR.
+        if (currentMode == CameraMode.TIMELAPSE && isTimelapseRunning) {
             toggleTimelapse()
             return
         }
-        if (currentMode == CameraMode.ASTRO && astroStackingEnabled) {
+        if (currentMode == CameraMode.ASTRO && astroStackingEnabled && isAstroStackingRunning) {
             toggleAstroStacking()
             return
         }
+
+        val startAction: () -> Unit = when {
+            currentMode == CameraMode.TIMELAPSE -> { { toggleTimelapse() } }
+            currentMode == CameraMode.ASTRO && astroStackingEnabled -> { { toggleAstroStacking() } }
+            else -> { { takePhoto() } }
+        }
+
         if (timerSeconds == 0) {
-            takePhoto()
+            startAction()
         } else {
-            startCountdown(timerSeconds)
+            startCountdown(timerSeconds, startAction)
         }
     }
 
-    private fun startCountdown(seconds: Int) {
+    private fun startCountdown(seconds: Int, onFinished: () -> Unit) {
         binding.tvCountdown.visibility = View.VISIBLE
         countDownTimer?.cancel()
         countDownTimer = object : CountDownTimer(seconds * 1000L, 1000L) {
@@ -1080,7 +1089,7 @@ class MainActivity : AppCompatActivity() {
 
             override fun onFinish() {
                 binding.tvCountdown.visibility = View.GONE
-                takePhoto()
+                onFinished()
             }
         }.start()
     }
@@ -1251,9 +1260,12 @@ class MainActivity : AppCompatActivity() {
         }
 
         val controls = listOf(
-            binding.ivFlashIcon,
-            binding.tvFlashLabel,
-            binding.tvTimerLabel,
+            // Chips de flash y temporizador: se rota el chip COMPLETO (fondo +
+            // icono + etiqueta juntos), no solo el texto suelto por dentro —
+            // si no, el fondo del chip se queda quieto y el contenido gira
+            // "flotando" dentro, que es justo lo que se veía mal antes.
+            binding.btnFlash,
+            binding.btnTimer,
             binding.btnGallery,
             binding.btnSwitchCamera,
             // Pestañas de modos (icono + etiqueta + indicador, como una sola unidad)
@@ -1261,7 +1273,13 @@ class MainActivity : AppCompatActivity() {
             binding.tabManual,
             binding.tabTimelapse,
             binding.tabAstro,
-            // Valores de los submenús de parámetros (Manual / Timelapse / Astro)
+            // Valores de los submenús de parámetros (Manual / Timelapse / Astro).
+            // NOTA: aquí NO se rota la fila completa (ancho total del panel):
+            // como la app sigue bloqueada en vertical, la pantalla no cambia de
+            // tamaño al girar el teléfono, así que un elemento de ancho completo
+            // rotado 90° terminaría solapando las filas vecinas de arriba y
+            // abajo. Solo se rota el valor (compacto, tipo "100" o "5s"), que sí
+            // cabe girado sin invadir el resto del panel.
             binding.tvIsoValue,
             binding.tvExposureValue,
             binding.tvContrastValue,
@@ -1271,12 +1289,13 @@ class MainActivity : AppCompatActivity() {
             binding.tvAstroIso,
             binding.tvAstroExposure,
             binding.tvAstroStackShots,
-            // Mensajes/pills que aparecen sobre la previsualización durante una captura
+            // Mensajes/pills que aparecen sobre la previsualización durante una
+            // captura: se rota el pill COMPLETO (punto + texto + fondo), igual
+            // que los chips de arriba.
             binding.tvCountdown,
-            binding.tvCaptureCountdown,
-            binding.tvTimelapseInfoShots,
-            binding.tvTimelapseInfoDuration,
-            binding.tvAstroStackInfo
+            binding.captureCountdownPill,
+            binding.timelapseInfoPill,
+            binding.astroStackInfoPill
         )
 
         controls.forEach { view ->

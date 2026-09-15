@@ -161,10 +161,25 @@ object TimelapseVideoBuilder {
         var presentationTimeUs = 0L
 
         fun drainEncoder(blockUntilEos: Boolean) {
+            var waitAttempts = 0
             while (true) {
                 val outIndex = encoder.dequeueOutputBuffer(bufferInfo, DEQUEUE_TIMEOUT_US)
                 when {
-                    outIndex == MediaCodec.INFO_TRY_AGAIN_LATER -> if (!blockUntilEos) return
+                    outIndex == MediaCodec.INFO_TRY_AGAIN_LATER -> {
+                        if (!blockUntilEos) return
+                        waitAttempts++
+                        if (waitAttempts > 500) {
+                            // ~5s sin recibir el buffer de fin de stream: el
+                            // encoder está atascado. Mejor abortar con un
+                            // error claro que colgar la app indefinidamente
+                            // (esto es justo lo que causaba que el timelapse
+                            // se quedara para siempre en "generando video").
+                            throw IllegalStateException(
+                                "El encoder nunca devolvió el buffer de salida con BUFFER_FLAG_END_OF_STREAM " +
+                                    "tras $waitAttempts intentos (~5s); posible cuelgue del encoder de hardware"
+                            )
+                        }
+                    }
                     outIndex == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED -> {
                         trackIndex = muxer.addTrack(encoder.outputFormat)
                         muxer.start()
