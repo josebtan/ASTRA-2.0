@@ -471,13 +471,30 @@ class MainActivity : AppCompatActivity() {
         else -> 0f
     }
 
+    private val rotateLayoutMap = mutableMapOf<android.widget.TextView, RotateLayout>()
+
+    private fun ensureRotateLayout(textView: android.widget.TextView): RotateLayout {
+        return rotateLayoutMap.get(textView) ?: run {
+            val parent = textView.parent as? ViewGroup
+            parent?.removeView(textView)
+            val rl = RotateLayout(requireContext()).apply {
+                addView(textView)
+            }
+            rotateLayoutMap[textView] = rl
+            rl
+        }
+    }
+
     private fun applyCurrentRotationToSubmenuValues() {
         val degrees = currentRotationDegrees()
         listOf(
             binding.tvIsoValue, binding.tvExposureValue, binding.tvContrastValue,
             binding.tvTimelapseInterval, binding.tvTimelapseShots, binding.tvTimelapseFps,
             binding.tvAstroIso, binding.tvAstroExposure, binding.tvAstroStackShots
-        ).forEach { it.rotation = degrees }
+        ).forEach { textView ->
+            val rotateLayout = ensureRotateLayout(textView)
+            rotateLayout.setRotationDegrees(degrees)
+        }
     }
 
     // --- Submenú Manual: ISO, exposición, contraste, RAW ---
