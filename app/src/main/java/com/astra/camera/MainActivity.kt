@@ -1244,6 +1244,7 @@ class MainActivity : AppCompatActivity() {
                 }
 
                 if (rotation != currentRotation) {
+                    Log.d(TAG, "onOrientationChanged: orientation=$orientation° -> rotation=$rotation (antes: $currentRotation)")
                     currentRotation = rotation
                     imageCapture?.targetRotation = rotation
                     rotateControls(rotation)
@@ -1277,23 +1278,31 @@ class MainActivity : AppCompatActivity() {
         // explica que los chips roten pero los valores de los submenús y el
         // reposicionamiento del menú de modos se queden sin aplicar.
         val degrees = rotationDegreesFor(rotation)
+        Log.d(TAG, "rotateControls: rotation=$rotation degrees=$degrees")
 
         try {
             rotateChipsAndPills(degrees)
+            Log.d(TAG, "rotateControls: rotateChipsAndPills() OK")
         } catch (e: Exception) {
             Log.e(TAG, "Error al rotar chips/pestañas/pills para rotation=$rotation", e)
         }
 
         try {
             applyCurrentRotationToSubmenuValues()
+            Log.d(TAG, "rotateControls: applyCurrentRotationToSubmenuValues() OK")
         } catch (e: Exception) {
             Log.e(TAG, "Error al rotar los valores de los submenús para rotation=$rotation", e)
         }
 
         try {
             repositionModesMenu(rotation)
+            Log.d(TAG, "rotateControls: repositionModesMenu() OK")
         } catch (e: Exception) {
             Log.e(TAG, "Error al reposicionar el menú de modos para rotation=$rotation", e)
+        }
+
+        if (DEBUG_ROTATION_TOAST) {
+            Toast.makeText(this, "DEBUG rotación: rotation=$rotation grados=$degrees", Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -1329,7 +1338,11 @@ class MainActivity : AppCompatActivity() {
         )
 
         controls.forEach { view ->
-            view.animate().rotation(degrees).setDuration(250).start()
+            try {
+                view.animate().rotation(degrees).setDuration(250).start()
+            } catch (e: Exception) {
+                Log.e(TAG, "No se pudo rotar la vista id=${view.id}", e)
+            }
         }
     }
 
@@ -1464,6 +1477,12 @@ class MainActivity : AppCompatActivity() {
 
     companion object {
         private const val TAG = "AstraCamera"
+
+        // TEMPORAL: muestra un Toast cada vez que se detecta un cambio de
+        // rotación física, para confirmar de un vistazo si el sensor está
+        // disparando correctamente. Poner en false una vez confirmado que
+        // todo funciona bien (o si ya no hace falta seguir probando).
+        private const val DEBUG_ROTATION_TOAST = true
 
         // Tamaño (ancho en horizontal / alto en lateral) de la barra de modos.
         private const val MODES_SIDE_BAR_SIZE_DP = 56
