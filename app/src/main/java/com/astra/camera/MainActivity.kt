@@ -471,30 +471,13 @@ class MainActivity : AppCompatActivity() {
         else -> 0f
     }
 
-    private val rotateLayoutMap = mutableMapOf<android.widget.TextView, RotateLayout>()
-
-    private fun ensureRotateLayout(textView: android.widget.TextView): RotateLayout {
-        return rotateLayoutMap.get(textView) ?: run {
-            val parent = textView.parent as? ViewGroup
-            parent?.removeView(textView)
-            val rl = RotateLayout(requireContext()).apply {
-                addView(textView)
-            }
-            rotateLayoutMap[textView] = rl
-            rl
-        }
-    }
-
     private fun applyCurrentRotationToSubmenuValues() {
         val degrees = currentRotationDegrees()
         listOf(
-            binding.tvIsoValue, binding.tvExposureValue, binding.tvContrastValue,
-            binding.tvTimelapseInterval, binding.tvTimelapseShots, binding.tvTimelapseFps,
-            binding.tvAstroIso, binding.tvAstroExposure, binding.tvAstroStackShots
-        ).forEach { textView ->
-            val rotateLayout = ensureRotateLayout(textView)
-            rotateLayout.setRotationDegrees(degrees)
-        }
+            binding.rotIsoValue, binding.rotExposureValue, binding.rotContrastValue,
+            binding.rotTimelapseInterval, binding.rotTimelapseShots, binding.rotTimelapseFps,
+            binding.rotAstroIso, binding.rotAstroExposure, binding.rotAstroStackShots
+        ).forEach { it.angle = degrees }
     }
 
     // --- Submenú Manual: ISO, exposición, contraste, RAW ---
@@ -1314,22 +1297,6 @@ class MainActivity : AppCompatActivity() {
             binding.tabManual,
             binding.tabTimelapse,
             binding.tabAstro,
-            // Valores de los submenús de parámetros (Manual / Timelapse / Astro).
-            // NOTA: aquí NO se rota la fila completa (ancho total del panel):
-            // como la app sigue bloqueada en vertical, la pantalla no cambia de
-            // tamaño al girar el teléfono, así que un elemento de ancho completo
-            // rotado 90° terminaría solapando las filas vecinas de arriba y
-            // abajo. Solo se rota el valor (compacto, tipo "100" o "5s"), que sí
-            // cabe girado sin invadir el resto del panel.
-            binding.tvIsoValue,
-            binding.tvExposureValue,
-            binding.tvContrastValue,
-            binding.tvTimelapseInterval,
-            binding.tvTimelapseShots,
-            binding.tvTimelapseFps,
-            binding.tvAstroIso,
-            binding.tvAstroExposure,
-            binding.tvAstroStackShots,
             // Mensajes/pills que aparecen sobre la previsualización durante una
             // captura: se rota el pill COMPLETO (punto + texto + fondo), igual
             // que los chips de arriba.
@@ -1342,6 +1309,12 @@ class MainActivity : AppCompatActivity() {
         controls.forEach { view ->
             view.animate().rotation(degrees).setDuration(250).start()
         }
+
+        // Los valores de los submenús de parámetros (ISO/exposición/intervalo/
+        // etc.) NO se rotan aquí junto al resto: usan un RotatableLayout que
+        // intercambia ancho/alto al medir, así el panel reserva el espacio
+        // real en vez de recortar o solapar filas vecinas (ver applyCurrentRotationToSubmenuValues).
+        applyCurrentRotationToSubmenuValues()
 
         repositionModesMenu(rotation)
     }
