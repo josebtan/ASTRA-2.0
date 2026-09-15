@@ -187,6 +187,8 @@
                 <LinearLayout
                     android:id="@+id/rowIso"
                     android:clipChildren="false"
+                    android:minHeight="40dp"
+                    android:gravity="center_vertical"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:orientation="horizontal">
@@ -200,19 +202,14 @@
                         android:textStyle="bold"
                         android:textSize="13sp" />
 
-                    <com.astra.camera.RotatableLayout
-                        android:id="@+id/rotIsoValue"
+                                        <TextView
+                        android:id="@+id/tvIsoValue"
                         android:layout_width="wrap_content"
-                        android:layout_height="wrap_content">
-<TextView
-                            android:id="@+id/tvIsoValue"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="@string/auto_label"
-                            android:textColor="@color/astra_accent"
-                            android:textStyle="bold"
-                            android:textSize="13sp" />
-                    </com.astra.camera.RotatableLayout>
+                        android:layout_height="wrap_content"
+                        android:text="@string/auto_label"
+                        android:textColor="@color/astra_accent"
+                        android:textStyle="bold"
+                        android:textSize="13sp" />
                 </LinearLayout>
 
                 <SeekBar
@@ -226,6 +223,8 @@
                 <LinearLayout
                     android:id="@+id/rowExposure"
                     android:clipChildren="false"
+                    android:minHeight="40dp"
+                    android:gravity="center_vertical"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:orientation="horizontal"
@@ -240,19 +239,14 @@
                         android:textStyle="bold"
                         android:textSize="13sp" />
 
-                    <com.astra.camera.RotatableLayout
-                        android:id="@+id/rotExposureValue"
+                                        <TextView
+                        android:id="@+id/tvExposureValue"
                         android:layout_width="wrap_content"
-                        android:layout_height="wrap_content">
-<TextView
-                            android:id="@+id/tvExposureValue"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="0.0"
-                            android:textColor="@color/astra_accent"
-                            android:textStyle="bold"
-                            android:textSize="13sp" />
-                    </com.astra.camera.RotatableLayout>
+                        android:layout_height="wrap_content"
+                        android:text="0.0"
+                        android:textColor="@color/astra_accent"
+                        android:textStyle="bold"
+                        android:textSize="13sp" />
                 </LinearLayout>
 
                 <SeekBar
@@ -266,6 +260,8 @@
                 <LinearLayout
                     android:id="@+id/rowContrast"
                     android:clipChildren="false"
+                    android:minHeight="40dp"
+                    android:gravity="center_vertical"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:orientation="horizontal"
@@ -280,19 +276,14 @@
                         android:textStyle="bold"
                         android:textSize="13sp" />
 
-                    <com.astra.camera.RotatableLayout
-                        android:id="@+id/rotContrastValue"
+                                        <TextView
+                        android:id="@+id/tvContrastValue"
                         android:layout_width="wrap_content"
-                        android:layout_height="wrap_content">
-<TextView
-                            android:id="@+id/tvContrastValue"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="0"
-                            android:textColor="@color/astra_accent"
-                            android:textStyle="bold"
-                            android:textSize="13sp" />
-                    </com.astra.camera.RotatableLayout>
+                        android:layout_height="wrap_content"
+                        android:text="0"
+                        android:textColor="@color/astra_accent"
+                        android:textStyle="bold"
+                        android:textSize="13sp" />
                 </LinearLayout>
 
                 <SeekBar
@@ -365,6 +356,8 @@
                 <LinearLayout
                     android:id="@+id/rowTimelapseInterval"
                     android:clipChildren="false"
+                    android:minHeight="40dp"
+                    android:gravity="center_vertical"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:orientation="horizontal">
@@ -378,19 +371,14 @@
                         android:textStyle="bold"
                         android:textSize="13sp" />
 
-                    <com.astra.camera.RotatableLayout
-                        android:id="@+id/rotTimelapseInterval"
+                                        <TextView
+                        android:id="@+id/tvTimelapseInterval"
                         android:layout_width="wrap_content"
-                        android:layout_height="wrap_content">
-<TextView
-                            android:id="@+id/tvTimelapseInterval"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="5s"
-                            android:textColor="@color/astra_accent"
-                            android:textStyle="bold"
-                            android:textSize="13sp" />
-                    </com.astra.camera.RotatableLayout>
+                        android:layout_height="wrap_content"
+                        android:text="5s"
+                        android:textColor="@color/astra_accent"
+                        android:textStyle="bold"
+                        android:textSize="13sp" />
                 </LinearLayout>
 
                 <SeekBar
@@ -406,6 +394,8 @@
                 <LinearLayout
                     android:id="@+id/rowTimelapseShots"
                     android:clipChildren="false"
+                    android:minHeight="40dp"
+                    android:gravity="center_vertical"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:orientation="horizontal"
@@ -420,19 +410,14 @@
                         android:textStyle="bold"
                         android:textSize="13sp" />
 
-                    <com.astra.camera.RotatableLayout
-                        android:id="@+id/rotTimelapseShots"
+                                        <TextView
+                        android:id="@+id/tvTimelapseShots"
                         android:layout_width="wrap_content"
-                        android:layout_height="wrap_content">
-<TextView
-                            android:id="@+id/tvTimelapseShots"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="@string/timelapse_shots_infinite"
-                            android:textColor="@color/astra_accent"
-                            android:textStyle="bold"
-                            android:textSize="13sp" />
-                    </com.astra.camera.RotatableLayout>
+                        android:layout_height="wrap_content"
+                        android:text="@string/timelapse_shots_infinite"
+                        android:textColor="@color/astra_accent"
+                        android:textStyle="bold"
+                        android:textSize="13sp" />
                 </LinearLayout>
 
                 <SeekBar
@@ -448,6 +433,8 @@
                 <LinearLayout
                     android:id="@+id/rowTimelapseFps"
                     android:clipChildren="false"
+                    android:minHeight="40dp"
+                    android:gravity="center_vertical"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:orientation="horizontal"
@@ -462,19 +449,14 @@
                         android:textStyle="bold"
                         android:textSize="13sp" />
 
-                    <com.astra.camera.RotatableLayout
-                        android:id="@+id/rotTimelapseFps"
+                                        <TextView
+                        android:id="@+id/tvTimelapseFps"
                         android:layout_width="wrap_content"
-                        android:layout_height="wrap_content">
-<TextView
-                            android:id="@+id/tvTimelapseFps"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="10 fps"
-                            android:textColor="@color/astra_accent"
-                            android:textStyle="bold"
-                            android:textSize="13sp" />
-                    </com.astra.camera.RotatableLayout>
+                        android:layout_height="wrap_content"
+                        android:text="10 fps"
+                        android:textColor="@color/astra_accent"
+                        android:textStyle="bold"
+                        android:textSize="13sp" />
                 </LinearLayout>
 
                 <SeekBar
@@ -519,6 +501,8 @@
                 <LinearLayout
                     android:id="@+id/rowAstroIso"
                     android:clipChildren="false"
+                    android:minHeight="40dp"
+                    android:gravity="center_vertical"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:orientation="horizontal"
@@ -533,19 +517,14 @@
                         android:textStyle="bold"
                         android:textSize="13sp" />
 
-                    <com.astra.camera.RotatableLayout
-                        android:id="@+id/rotAstroIso"
+                                        <TextView
+                        android:id="@+id/tvAstroIso"
                         android:layout_width="wrap_content"
-                        android:layout_height="wrap_content">
-<TextView
-                            android:id="@+id/tvAstroIso"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="@string/auto_label"
-                            android:textColor="@color/astra_accent"
-                            android:textStyle="bold"
-                            android:textSize="13sp" />
-                    </com.astra.camera.RotatableLayout>
+                        android:layout_height="wrap_content"
+                        android:text="@string/auto_label"
+                        android:textColor="@color/astra_accent"
+                        android:textStyle="bold"
+                        android:textSize="13sp" />
                 </LinearLayout>
 
                 <SeekBar
@@ -559,6 +538,8 @@
                 <LinearLayout
                     android:id="@+id/rowAstroExposure"
                     android:clipChildren="false"
+                    android:minHeight="40dp"
+                    android:gravity="center_vertical"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:orientation="horizontal"
@@ -573,19 +554,14 @@
                         android:textStyle="bold"
                         android:textSize="13sp" />
 
-                    <com.astra.camera.RotatableLayout
-                        android:id="@+id/rotAstroExposure"
+                                        <TextView
+                        android:id="@+id/tvAstroExposure"
                         android:layout_width="wrap_content"
-                        android:layout_height="wrap_content">
-<TextView
-                            android:id="@+id/tvAstroExposure"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="@string/auto_label"
-                            android:textColor="@color/astra_accent"
-                            android:textStyle="bold"
-                            android:textSize="13sp" />
-                    </com.astra.camera.RotatableLayout>
+                        android:layout_height="wrap_content"
+                        android:text="@string/auto_label"
+                        android:textColor="@color/astra_accent"
+                        android:textStyle="bold"
+                        android:textSize="13sp" />
                 </LinearLayout>
 
                 <SeekBar
@@ -667,6 +643,8 @@
                     <LinearLayout
                         android:id="@+id/rowAstroStackShots"
                     android:clipChildren="false"
+                    android:minHeight="40dp"
+                    android:gravity="center_vertical"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:orientation="horizontal"
@@ -681,19 +659,14 @@
                             android:textStyle="bold"
                             android:textSize="13sp" />
 
-                        <com.astra.camera.RotatableLayout
-                            android:id="@+id/rotAstroStackShots"
+                                                <TextView
+                            android:id="@+id/tvAstroStackShots"
                             android:layout_width="wrap_content"
-                            android:layout_height="wrap_content">
-<TextView
-                                android:id="@+id/tvAstroStackShots"
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:text="10"
-                                android:textColor="@color/astra_accent"
-                                android:textStyle="bold"
-                                android:textSize="13sp" />
-                        </com.astra.camera.RotatableLayout>
+                            android:layout_height="wrap_content"
+                            android:text="10"
+                            android:textColor="@color/astra_accent"
+                            android:textStyle="bold"
+                            android:textSize="13sp" />
                     </LinearLayout>
 
                     <SeekBar

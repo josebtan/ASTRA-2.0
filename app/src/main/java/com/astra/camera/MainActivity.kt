@@ -464,20 +464,27 @@ class MainActivity : AppCompatActivity() {
     }
 
     /** Rotación (en grados) que corresponde a la orientación física actual del teléfono. */
-    private fun currentRotationDegrees(): Float = when (currentRotation) {
-        Surface.ROTATION_90 -> 90f
-        Surface.ROTATION_180 -> 180f
-        Surface.ROTATION_270 -> -90f
-        else -> 0f
-    }
+    private fun currentRotationDegrees(): Float = rotationDegreesFor(currentRotation)
 
     private fun applyCurrentRotationToSubmenuValues() {
-        val degrees = currentRotationDegrees()
+        rotateSubmenuValues(currentRotationDegrees())
+    }
+
+    /**
+     * Rota los valores compactos de los submenús (ISO, exposición, contraste,
+     * intervalo, fps, número de fotos) con la misma técnica simple y ya
+     * comprobada que usan los chips y las pestañas (View.animate().rotation()
+     * directo sobre el TextView) — nada de ViewGroups personalizados con
+     * medición dinámica. Las filas correspondientes (rowIso, rowExposure,
+     * etc.) tienen un minHeight fijo en el layout para que quepa el valor
+     * girado 90° sin recortarse ni solapar la fila vecina.
+     */
+    private fun rotateSubmenuValues(degrees: Float) {
         listOf(
-            binding.rotIsoValue, binding.rotExposureValue, binding.rotContrastValue,
-            binding.rotTimelapseInterval, binding.rotTimelapseShots, binding.rotTimelapseFps,
-            binding.rotAstroIso, binding.rotAstroExposure, binding.rotAstroStackShots
-        ).forEach { it.angle = degrees }
+            binding.tvIsoValue, binding.tvExposureValue, binding.tvContrastValue,
+            binding.tvTimelapseInterval, binding.tvTimelapseShots, binding.tvTimelapseFps,
+            binding.tvAstroIso, binding.tvAstroExposure, binding.tvAstroStackShots
+        ).forEach { it.animate().rotation(degrees).setDuration(250).start() }
     }
 
     // --- Submenú Manual: ISO, exposición, contraste, RAW ---
@@ -1264,25 +1271,40 @@ class MainActivity : AppCompatActivity() {
      * compensación (no en la contraria) para verse derechos al usuario.
      */
     private fun rotateControls(rotation: Int) {
+        // Cada fase tiene su propio try-catch: antes, si UNA fallaba, las
+        // siguientes nunca llegaban a ejecutarse (estaban todas encadenadas
+        // dentro de un único try-catch). Esto es lo que probablemente
+        // explica que los chips roten pero los valores de los submenús y el
+        // reposicionamiento del menú de modos se queden sin aplicar.
+        val degrees = rotationDegreesFor(rotation)
+
         try {
-            rotateControlsUnsafe(rotation)
+            rotateChipsAndPills(degrees)
         } catch (e: Exception) {
-            // Nunca dejar que un error al reposicionar el menú al girar el
-            // teléfono tumbe toda la app: en el peor caso, un control se
-            // queda mal ubicado o sin rotar hasta el próximo giro, pero la
-            // app sigue funcionando.
-            Log.e(TAG, "Error al reposicionar la UI para rotation=$rotation", e)
+            Log.e(TAG, "Error al rotar chips/pestañas/pills para rotation=$rotation", e)
+        }
+
+        try {
+            applyCurrentRotationToSubmenuValues()
+        } catch (e: Exception) {
+            Log.e(TAG, "Error al rotar los valores de los submenús para rotation=$rotation", e)
+        }
+
+        try {
+            repositionModesMenu(rotation)
+        } catch (e: Exception) {
+            Log.e(TAG, "Error al reposicionar el menú de modos para rotation=$rotation", e)
         }
     }
 
-    private fun rotateControlsUnsafe(rotation: Int) {
-        val degrees = when (rotation) {
-            Surface.ROTATION_90 -> 90f
-            Surface.ROTATION_180 -> 180f
-            Surface.ROTATION_270 -> -90f
-            else -> 0f
-        }
+    private fun rotationDegreesFor(rotation: Int): Float = when (rotation) {
+        Surface.ROTATION_90 -> 90f
+        Surface.ROTATION_180 -> 180f
+        Surface.ROTATION_270 -> -90f
+        else -> 0f
+    }
 
+    private fun rotateChipsAndPills(degrees: Float) {
         val controls = listOf(
             // Chips de flash y temporizador: se rota el chip COMPLETO (fondo +
             // icono + etiqueta juntos), no solo el texto suelto por dentro —
@@ -1309,14 +1331,6 @@ class MainActivity : AppCompatActivity() {
         controls.forEach { view ->
             view.animate().rotation(degrees).setDuration(250).start()
         }
-
-        // Los valores de los submenús de parámetros (ISO/exposición/intervalo/
-        // etc.) NO se rotan aquí junto al resto: usan un RotatableLayout que
-        // intercambia ancho/alto al medir, así el panel reserva el espacio
-        // real en vez de recortar o solapar filas vecinas (ver applyCurrentRotationToSubmenuValues).
-        applyCurrentRotationToSubmenuValues()
-
-        repositionModesMenu(rotation)
     }
 
     /**
