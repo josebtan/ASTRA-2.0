@@ -16,7 +16,6 @@ import android.view.Gravity
 import android.view.OrientationEventListener
 import android.view.Surface
 import android.view.View
-import android.widget.LinearLayout
 import android.widget.SeekBar
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
@@ -32,9 +31,7 @@ import androidx.camera.core.ImageCapture
 import androidx.camera.core.ImageCaptureException
 import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
-import androidx.constraintlayout.widget.ConstraintSet
 import androidx.core.content.ContextCompat
-import androidx.transition.AutoTransition
 import androidx.transition.Slide
 import androidx.transition.TransitionManager
 import com.astra.camera.databinding.ActivityMainBinding
@@ -123,9 +120,6 @@ class MainActivity : AppCompatActivity() {
     // --- Orientación física del teléfono ---
     private var currentRotation = Surface.ROTATION_0
     private lateinit var orientationEventListener: OrientationEventListener
-    // Evita solapar una transición de reposicionamiento del menú con otra
-    // que empiece antes de que la primera termine su animación (250ms).
-    private var isRepositioningModesMenu = false
 
     private lateinit var outputDirectory: File
 
@@ -455,35 +449,26 @@ class MainActivity : AppCompatActivity() {
         binding.indicatorTimelapse.visibility = if (currentMode == CameraMode.TIMELAPSE) View.VISIBLE else View.INVISIBLE
         binding.indicatorAstro.visibility = if (currentMode == CameraMode.ASTRO) View.VISIBLE else View.INVISIBLE
 
-        // Los valores del submenú recién hecho visible pueden haber "perdido"
-        // la rotación aplicada mientras estaban en GONE (algunos fabricantes
-        // no conservan bien transformaciones de vistas no medidas). Se
-        // reaplica aquí, de forma inmediata (sin animar), usando la rotación
-        // física actual del teléfono.
+        // Los badges de valor recién hechos visibles se sincronizan con la
+        // rotación física actual del teléfono (por si el submenú se abre
+        // estando ya en horizontal, sin que haya habido un giro nuevo).
         applyCurrentRotationToSubmenuValues()
     }
 
-    /** Rotación (en grados) que corresponde a la orientación física actual del teléfono. */
-    private fun currentRotationDegrees(): Float = rotationDegreesFor(currentRotation)
-
-    private fun applyCurrentRotationToSubmenuValues() {
-        rotateSubmenuValues(currentRotationDegrees())
+    private fun currentRotationDegrees(): Float = when (currentRotation) {
+        Surface.ROTATION_90 -> 90f
+        Surface.ROTATION_180 -> 180f
+        Surface.ROTATION_270 -> -90f
+        else -> 0f
     }
 
-    /**
-     * Rota los valores compactos de los submenús (ISO, exposición, contraste,
-     * intervalo, fps, número de fotos) usando [RotatableLayout]: un
-     * contenedor real que intercambia ancho/alto al medirse, así el panel
-     * reserva el espacio girado de verdad (en vez de solo rotar el texto
-     * suelto dejando su "hueco" original sin rotar, que es lo que recortaba
-     * o solapaba la fila vecina).
-     */
-    private fun rotateSubmenuValues(degrees: Float) {
+    private fun applyCurrentRotationToSubmenuValues() {
+        val degrees = currentRotationDegrees()
         listOf(
-            binding.rotIsoValue, binding.rotExposureValue, binding.rotContrastValue,
-            binding.rotTimelapseInterval, binding.rotTimelapseShots, binding.rotTimelapseFps,
-            binding.rotAstroIso, binding.rotAstroExposure, binding.rotAstroStackShots
-        ).forEach { it.angle = degrees }
+            binding.tvIsoValue, binding.tvExposureValue, binding.tvContrastValue,
+            binding.tvTimelapseInterval, binding.tvTimelapseShots, binding.tvTimelapseFps,
+            binding.tvAstroIso, binding.tvAstroExposure, binding.tvAstroStackShots
+        ).forEach { it.rotation = degrees }
     }
 
     // --- Submenú Manual: ISO, exposición, contraste, RAW ---
@@ -1243,7 +1228,6 @@ class MainActivity : AppCompatActivity() {
                 }
 
                 if (rotation != currentRotation) {
-                    Log.d(TAG, "onOrientationChanged: orientation=$orientation° -> rotation=$rotation (antes: $currentRotation)")
                     currentRotation = rotation
                     imageCapture?.targetRotation = rotation
                     rotateControls(rotation)
@@ -1270,201 +1254,69 @@ class MainActivity : AppCompatActivity() {
      * Por eso los controles deben rotar en la MISMA dirección que esa
      * compensación (no en la contraria) para verse derechos al usuario.
      */
+    /**
+     * Rota los controles que necesitan seguir siendo legibles al girar el
+     * teléfono. Se usa UNA sola técnica, simple y ya comprobada en toda la
+     * app (View.animate().rotation()), sobre dos tipos de elementos:
+     *
+     * 1. Iconos pequeños (flash, temporizador, iconos de las pestañas de
+     *    modo): son cuadrados o casi cuadrados por naturaleza, así que
+     *    rotarlos en el sitio nunca recorta nada — así lo hacen las apps de
+     *    cámara reales (Google Camera, Samsung Camera, etc.): solo el icono
+     *    gira, el resto de la barra se queda exactamente donde está.
+     *
+     * 2. Los badges de valor de los submenús (ISO, exposición, intervalo,
+     *    etc.): son TextView de tamaño FIJO y CUADRADO (ver @style/ValueBadge
+     *    en el layout), por lo que igual que los iconos, rotarlos no cambia
+     *    su huella ni recorta ni solapa la fila vecina.
+     *
+     * Ni las etiquetas de texto (ISO, Exposición, Manual, Timelapse...) ni la
+     * barra de pestañas como contenedor se rotan ni se reposicionan: ninguna
+     * app de cámara hace eso, y es lo que generaba todos los problemas de
+     * recorte/solapamiento en los intentos anteriores.
+     */
     private fun rotateControls(rotation: Int) {
-        // Cada fase tiene su propio try-catch: antes, si UNA fallaba, las
-        // siguientes nunca llegaban a ejecutarse (estaban todas encadenadas
-        // dentro de un único try-catch). Esto es lo que probablemente
-        // explica que los chips roten pero los valores de los submenús y el
-        // reposicionamiento del menú de modos se queden sin aplicar.
-        val degrees = rotationDegreesFor(rotation)
-        Log.d(TAG, "rotateControls: rotation=$rotation degrees=$degrees")
-
-        try {
-            rotateChipsAndPills(degrees)
-            Log.d(TAG, "rotateControls: rotateChipsAndPills() OK")
-        } catch (e: Exception) {
-            Log.e(TAG, "Error al rotar chips/pestañas/pills para rotation=$rotation", e)
+        val degrees = when (rotation) {
+            Surface.ROTATION_90 -> 90f
+            Surface.ROTATION_180 -> 180f
+            Surface.ROTATION_270 -> -90f
+            else -> 0f
         }
 
-        try {
-            applyCurrentRotationToSubmenuValues()
-            Log.d(TAG, "rotateControls: applyCurrentRotationToSubmenuValues() OK")
-        } catch (e: Exception) {
-            Log.e(TAG, "Error al rotar los valores de los submenús para rotation=$rotation", e)
-        }
-
-        try {
-            repositionModesMenu(rotation)
-            Log.d(TAG, "rotateControls: repositionModesMenu() OK")
-        } catch (e: Exception) {
-            Log.e(TAG, "Error al reposicionar el menú de modos para rotation=$rotation", e)
-        }
-
-        if (DEBUG_ROTATION_TOAST) {
-            Toast.makeText(this, "DEBUG rotación: rotation=$rotation grados=$degrees", Toast.LENGTH_SHORT).show()
-        }
-    }
-
-    private fun rotationDegreesFor(rotation: Int): Float = when (rotation) {
-        Surface.ROTATION_90 -> 90f
-        Surface.ROTATION_180 -> 180f
-        Surface.ROTATION_270 -> -90f
-        else -> 0f
-    }
-
-    private fun rotateChipsAndPills(degrees: Float) {
-        val controls = listOf(
-            // Chips de flash y temporizador: se rota el chip COMPLETO (fondo +
-            // icono + etiqueta juntos), no solo el texto suelto por dentro —
-            // si no, el fondo del chip se queda quieto y el contenido gira
-            // "flotando" dentro, que es justo lo que se veía mal antes.
-            binding.btnFlash,
-            binding.btnTimer,
+        val iconsAndBadges = listOf(
+            // Iconos de flash y temporizador
+            binding.ivFlashIcon,
+            binding.ivTimerIcon,
             binding.btnGallery,
             binding.btnSwitchCamera,
-            // Pestañas de modos (icono + etiqueta + indicador, como una sola unidad)
-            binding.tabNormal,
-            binding.tabManual,
-            binding.tabTimelapse,
-            binding.tabAstro,
-            // Mensajes/pills que aparecen sobre la previsualización durante una
-            // captura: se rota el pill COMPLETO (punto + texto + fondo), igual
-            // que los chips de arriba.
-            binding.tvCountdown,
-            binding.captureCountdownPill,
-            binding.timelapseInfoPill,
-            binding.astroStackInfoPill
+            // Iconos de las pestañas de modo
+            binding.ivTabNormalIcon,
+            binding.ivTabManualIcon,
+            binding.ivTabTimelapseIcon,
+            binding.ivTabAstroIcon,
+            // Badges cuadrados de valor en los submenús de parámetros
+            binding.tvIsoValue,
+            binding.tvExposureValue,
+            binding.tvContrastValue,
+            binding.tvTimelapseInterval,
+            binding.tvTimelapseShots,
+            binding.tvTimelapseFps,
+            binding.tvAstroIso,
+            binding.tvAstroExposure,
+            binding.tvAstroStackShots,
+            // Mensajes/pills compactos que aparecen sobre la previsualización.
+            // Solo la cuenta regresiva (un solo dígito, prácticamente
+            // cuadrada) se rota; los pills de texto largo (timelapse/stack)
+            // NO se rotan, ya que un texto ancho girado 90° sí se
+            // desbordaría — el mismo problema que tenían los submenús antes
+            // de pasar a badges cuadrados de tamaño fijo.
+            binding.tvCountdown
         )
 
-        controls.forEach { view ->
-            try {
-                view.animate().rotation(degrees).setDuration(250).start()
-            } catch (e: Exception) {
-                Log.e(TAG, "No se pudo rotar la vista id=${view.id}", e)
-            }
+        iconsAndBadges.forEach { view ->
+            view.animate().rotation(degrees).setDuration(250).start()
         }
     }
-
-    /**
-     * Reubica el menú de modos completo (no solo su contenido) según el lado
-     * hacia el que esté girado el teléfono:
-     * - Vertical (arriba o "cabeza abajo"): barra horizontal abajo, como siempre.
-     * - Girado hacia un lado (horizontal): la barra pasa a ser una columna
-     *   vertical pegada al lateral correspondiente (derecho o izquierdo),
-     *   y la barra de captura ocupa directamente el borde inferior.
-     *
-     * Esto es necesario porque simplemente rotar el contenido de cada
-     * pestaña "in place" dentro de una franja de 56dp de alto no deja
-     * espacio suficiente al girarlo 90°: el contenido queda recortado.
-     * Reestructurando el ancho/alto real de la barra se evita ese problema.
-     */
-    private fun repositionModesMenu(rotation: Int) {
-        // Si ya hay una transición de reposicionamiento en curso (la animación
-        // dura 250ms), se ignora este llamado en vez de solaparla con otra:
-        // el próximo cambio de orientación real la disparará de nuevo.
-        if (isRepositioningModesMenu) return
-
-        val sideBarId = binding.modesTabBar.id
-        val bottomBarId = binding.bottomBar.id
-        val topBarId = binding.topBar.id
-        val isSideways = rotation == Surface.ROTATION_90 || rotation == Surface.ROTATION_270
-
-        try {
-            isRepositioningModesMenu = true
-
-            val constraintSet = ConstraintSet()
-            constraintSet.clone(binding.root)
-
-            // Se inicia la transición ANTES de aplicar cualquier cambio (tanto el
-            // ConstraintSet como el reordenamiento del LinearLayout interno), para
-            // que el sistema capture el estado "antes" y anime ambos a la vez.
-            val transition = AutoTransition().setDuration(250)
-            transition.addListener(object : androidx.transition.Transition.TransitionListener {
-                override fun onTransitionStart(t: androidx.transition.Transition) = Unit
-                override fun onTransitionEnd(t: androidx.transition.Transition) {
-                    isRepositioningModesMenu = false
-                }
-                override fun onTransitionCancel(t: androidx.transition.Transition) {
-                    isRepositioningModesMenu = false
-                }
-                override fun onTransitionPause(t: androidx.transition.Transition) = Unit
-                override fun onTransitionResume(t: androidx.transition.Transition) = Unit
-            })
-            TransitionManager.beginDelayedTransition(binding.root, transition)
-            // Red de seguridad: si por algún motivo el listener de la
-            // transición nunca se dispara, esto evita que isRepositioningModesMenu
-            // quede bloqueado en true para siempre (lo que congelaría el menú).
-            binding.root.postDelayed({ isRepositioningModesMenu = false }, 500L)
-
-            if (isSideways) {
-                constraintSet.constrainWidth(sideBarId, dpToPx(MODES_SIDE_BAR_SIZE_DP))
-                constraintSet.constrainHeight(sideBarId, 0)
-                constraintSet.clear(sideBarId, ConstraintSet.START)
-                constraintSet.clear(sideBarId, ConstraintSet.END)
-                constraintSet.connect(sideBarId, ConstraintSet.TOP, topBarId, ConstraintSet.BOTTOM)
-                constraintSet.connect(sideBarId, ConstraintSet.BOTTOM, ConstraintSet.PARENT_ID, ConstraintSet.BOTTOM)
-                if (rotation == Surface.ROTATION_90) {
-                    // El teléfono se giró de forma que el lado de gravedad quedó a
-                    // la derecha de la pantalla en coordenadas fijas de la app.
-                    constraintSet.connect(sideBarId, ConstraintSet.END, ConstraintSet.PARENT_ID, ConstraintSet.END)
-                } else {
-                    constraintSet.connect(sideBarId, ConstraintSet.START, ConstraintSet.PARENT_ID, ConstraintSet.START)
-                }
-
-                constraintSet.clear(bottomBarId, ConstraintSet.BOTTOM)
-                constraintSet.connect(bottomBarId, ConstraintSet.BOTTOM, ConstraintSet.PARENT_ID, ConstraintSet.BOTTOM)
-
-                setModesTabBarVertical(true)
-            } else {
-                constraintSet.constrainWidth(sideBarId, 0)
-                constraintSet.constrainHeight(sideBarId, dpToPx(MODES_SIDE_BAR_SIZE_DP))
-                constraintSet.clear(sideBarId, ConstraintSet.TOP)
-                constraintSet.connect(sideBarId, ConstraintSet.START, ConstraintSet.PARENT_ID, ConstraintSet.START)
-                constraintSet.connect(sideBarId, ConstraintSet.END, ConstraintSet.PARENT_ID, ConstraintSet.END)
-                constraintSet.connect(sideBarId, ConstraintSet.BOTTOM, ConstraintSet.PARENT_ID, ConstraintSet.BOTTOM)
-
-                constraintSet.clear(bottomBarId, ConstraintSet.BOTTOM)
-                constraintSet.connect(bottomBarId, ConstraintSet.BOTTOM, sideBarId, ConstraintSet.TOP)
-
-                setModesTabBarVertical(false)
-            }
-
-            constraintSet.applyTo(binding.root)
-        } catch (e: Exception) {
-            Log.e(TAG, "Error al reposicionar el menu de modos para rotation=$rotation", e)
-            isRepositioningModesMenu = false
-        }
-    }
-
-    /**
-     * Cambia la orientación interna de la barra de pestañas y de cada
-     * pestaña individual entre horizontal (abajo) y vertical (lateral).
-     * En LinearLayout, el "peso" (weight) que reparte el espacio actúa
-     * sobre el ancho en horizontal y sobre el alto en vertical, así que
-     * hay que intercambiar cuál de las dos dimensiones queda en 0dp.
-     */
-    private fun setModesTabBarVertical(vertical: Boolean) {
-        binding.modesTabBar.orientation = if (vertical) LinearLayout.VERTICAL else LinearLayout.HORIZONTAL
-
-        val tabs = listOf(binding.tabNormal, binding.tabManual, binding.tabTimelapse, binding.tabAstro)
-        tabs.forEach { tab ->
-            // Cast seguro: si por algún motivo el layoutParams no fuera del
-            // tipo esperado, se omite ese tab en vez de lanzar una
-            // ClassCastException que tumbaría toda la app.
-            val params = tab.layoutParams as? LinearLayout.LayoutParams ?: return@forEach
-            if (vertical) {
-                params.width = LinearLayout.LayoutParams.MATCH_PARENT
-                params.height = 0
-            } else {
-                params.width = 0
-                params.height = LinearLayout.LayoutParams.MATCH_PARENT
-            }
-            params.weight = 1f
-            tab.layoutParams = params
-        }
-    }
-
-    private fun dpToPx(dp: Int): Int = (dp * resources.displayMetrics.density).toInt()
 
     override fun onDestroy() {
         super.onDestroy()
@@ -1476,15 +1328,6 @@ class MainActivity : AppCompatActivity() {
 
     companion object {
         private const val TAG = "AstraCamera"
-
-        // TEMPORAL: muestra un Toast cada vez que se detecta un cambio de
-        // rotación física, para confirmar de un vistazo si el sensor está
-        // disparando correctamente. Poner en false una vez confirmado que
-        // todo funciona bien (o si ya no hace falta seguir probando).
-        private const val DEBUG_ROTATION_TOAST = true
-
-        // Tamaño (ancho en horizontal / alto en lateral) de la barra de modos.
-        private const val MODES_SIDE_BAR_SIZE_DP = 56
 
         // Tiempo de exposición por defecto (1/100s) usado al fijar un ISO manual,
         // ya que al desactivar la exposición automática también hay que fijar

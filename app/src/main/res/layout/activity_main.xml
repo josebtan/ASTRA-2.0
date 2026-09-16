@@ -120,6 +120,7 @@
             android:contentDescription="@string/content_description_timer">
 
             <ImageView
+                android:id="@+id/ivTimerIcon"
                 android:layout_width="18dp"
                 android:layout_height="18dp"
                 android:src="@drawable/ic_timer"
@@ -147,7 +148,17 @@
 
     <!-- Submenú de parámetros del modo activo. Se despliega hacia arriba desde
          la barra de pestañas de modos (justo debajo) y se oculta hacia abajo
-         al cerrarlo; solo se muestra el contenido del modo seleccionado. -->
+         al cerrarlo; solo se muestra el contenido del modo seleccionado.
+
+         Diseño pensado desde el inicio para la rotación: cada VALOR (ISO,
+         exposición, intervalo, etc.) vive en un badge CUADRADO de tamaño
+         FIJO (40dp x 40dp). Un cuadrado rotado 90° sigue siendo el mismo
+         cuadrado — no cambia su ancho ni su alto — así que rotarlo con
+         View.animate().rotation() (la misma técnica simple que ya funciona
+         en los iconos) no recorta ni solapa nada, sin necesidad de ningún
+         ViewGroup personalizado ni medición dinámica. Las etiquetas y los
+         SeekBar se quedan siempre horizontales (igual que en cualquier app
+         de cámara real: solo lo mínimo necesario para leer el valor rota). -->
     <ScrollView
         android:id="@+id/scrollModesPanel"
         android:layout_width="0dp"
@@ -155,7 +166,6 @@
         android:layout_marginHorizontal="16dp"
         android:layout_marginBottom="12dp"
         android:visibility="gone"
-        android:clipChildren="false"
         app:layout_constraintTop_toBottomOf="@id/topBar"
         app:layout_constraintBottom_toTopOf="@id/bottomBar"
         app:layout_constraintStart_toStartOf="parent"
@@ -166,7 +176,6 @@
 
         <LinearLayout
             android:id="@+id/panelModes"
-                android:clipChildren="false"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical"
@@ -176,7 +185,6 @@
             <!-- ===== Manual: ISO, exposición, contraste, RAW ===== -->
             <LinearLayout
                 android:id="@+id/contentManual"
-                android:clipChildren="false"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
@@ -185,12 +193,9 @@
 
                 <!-- ISO -->
                 <LinearLayout
-                    android:id="@+id/rowIso"
-                    android:clipChildren="false"
-                    android:minHeight="40dp"
-                    android:gravity="center_vertical"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
+                    android:gravity="center_vertical"
                     android:orientation="horizontal">
 
                     <TextView
@@ -202,36 +207,25 @@
                         android:textStyle="bold"
                         android:textSize="13sp" />
 
-                                        <com.astra.camera.RotatableLayout
-                                            android:id="@+id/rotIsoValue"
-                                            android:layout_width="wrap_content"
-                                            android:layout_height="wrap_content">
-                                            <TextView
-                                                android:id="@+id/tvIsoValue"
-                                                android:layout_width="wrap_content"
-                                                android:layout_height="wrap_content"
-                        android:text="@string/auto_label"
-                        android:textColor="@color/astra_accent"
-                        android:textStyle="bold"
-                        android:textSize="13sp" />
-                                        </com.astra.camera.RotatableLayout>
+                    <TextView
+                        android:id="@+id/tvIsoValue"
+                        style="@style/ValueBadge"
+                        android:text="@string/auto_label" />
                 </LinearLayout>
 
                 <SeekBar
                     android:id="@+id/seekIso"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
                     android:progressTint="@color/astra_accent"
                     android:thumbTint="@color/astra_accent" />
 
                 <!-- Exposición -->
                 <LinearLayout
-                    android:id="@+id/rowExposure"
-                    android:clipChildren="false"
-                    android:minHeight="40dp"
-                    android:gravity="center_vertical"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
+                    android:gravity="center_vertical"
                     android:orientation="horizontal"
                     android:layout_marginTop="12dp">
 
@@ -244,36 +238,25 @@
                         android:textStyle="bold"
                         android:textSize="13sp" />
 
-                                        <com.astra.camera.RotatableLayout
-                                            android:id="@+id/rotExposureValue"
-                                            android:layout_width="wrap_content"
-                                            android:layout_height="wrap_content">
-                                            <TextView
-                                                android:id="@+id/tvExposureValue"
-                                                android:layout_width="wrap_content"
-                                                android:layout_height="wrap_content"
-                        android:text="0.0"
-                        android:textColor="@color/astra_accent"
-                        android:textStyle="bold"
-                        android:textSize="13sp" />
-                                        </com.astra.camera.RotatableLayout>
+                    <TextView
+                        android:id="@+id/tvExposureValue"
+                        style="@style/ValueBadge"
+                        android:text="0.0" />
                 </LinearLayout>
 
                 <SeekBar
                     android:id="@+id/seekExposure"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
                     android:progressTint="@color/astra_accent"
                     android:thumbTint="@color/astra_accent" />
 
                 <!-- Contraste -->
                 <LinearLayout
-                    android:id="@+id/rowContrast"
-                    android:clipChildren="false"
-                    android:minHeight="40dp"
-                    android:gravity="center_vertical"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
+                    android:gravity="center_vertical"
                     android:orientation="horizontal"
                     android:layout_marginTop="12dp">
 
@@ -286,25 +269,17 @@
                         android:textStyle="bold"
                         android:textSize="13sp" />
 
-                                        <com.astra.camera.RotatableLayout
-                                            android:id="@+id/rotContrastValue"
-                                            android:layout_width="wrap_content"
-                                            android:layout_height="wrap_content">
-                                            <TextView
-                                                android:id="@+id/tvContrastValue"
-                                                android:layout_width="wrap_content"
-                                                android:layout_height="wrap_content"
-                        android:text="0"
-                        android:textColor="@color/astra_accent"
-                        android:textStyle="bold"
-                        android:textSize="13sp" />
-                                        </com.astra.camera.RotatableLayout>
+                    <TextView
+                        android:id="@+id/tvContrastValue"
+                        style="@style/ValueBadge"
+                        android:text="0" />
                 </LinearLayout>
 
                 <SeekBar
                     android:id="@+id/seekContrast"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
                     android:max="100"
                     android:progress="50"
                     android:progressTint="@color/astra_accent"
@@ -360,7 +335,6 @@
             <!-- ===== Timelapse: intervalo, número de fotos, iniciar/detener ===== -->
             <LinearLayout
                 android:id="@+id/contentTimelapse"
-                android:clipChildren="false"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
@@ -369,12 +343,9 @@
 
                 <!-- Intervalo -->
                 <LinearLayout
-                    android:id="@+id/rowTimelapseInterval"
-                    android:clipChildren="false"
-                    android:minHeight="40dp"
-                    android:gravity="center_vertical"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
+                    android:gravity="center_vertical"
                     android:orientation="horizontal">
 
                     <TextView
@@ -386,25 +357,17 @@
                         android:textStyle="bold"
                         android:textSize="13sp" />
 
-                                        <com.astra.camera.RotatableLayout
-                                            android:id="@+id/rotTimelapseInterval"
-                                            android:layout_width="wrap_content"
-                                            android:layout_height="wrap_content">
-                                            <TextView
-                                                android:id="@+id/tvTimelapseInterval"
-                                                android:layout_width="wrap_content"
-                                                android:layout_height="wrap_content"
-                        android:text="5s"
-                        android:textColor="@color/astra_accent"
-                        android:textStyle="bold"
-                        android:textSize="13sp" />
-                                        </com.astra.camera.RotatableLayout>
+                    <TextView
+                        android:id="@+id/tvTimelapseInterval"
+                        style="@style/ValueBadge"
+                        android:text="5s" />
                 </LinearLayout>
 
                 <SeekBar
                     android:id="@+id/seekTimelapseInterval"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
                     android:max="119"
                     android:progress="4"
                     android:progressTint="@color/astra_accent"
@@ -412,12 +375,9 @@
 
                 <!-- Número de fotos -->
                 <LinearLayout
-                    android:id="@+id/rowTimelapseShots"
-                    android:clipChildren="false"
-                    android:minHeight="40dp"
-                    android:gravity="center_vertical"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
+                    android:gravity="center_vertical"
                     android:orientation="horizontal"
                     android:layout_marginTop="12dp">
 
@@ -430,25 +390,17 @@
                         android:textStyle="bold"
                         android:textSize="13sp" />
 
-                                        <com.astra.camera.RotatableLayout
-                                            android:id="@+id/rotTimelapseShots"
-                                            android:layout_width="wrap_content"
-                                            android:layout_height="wrap_content">
-                                            <TextView
-                                                android:id="@+id/tvTimelapseShots"
-                                                android:layout_width="wrap_content"
-                                                android:layout_height="wrap_content"
-                        android:text="@string/timelapse_shots_infinite"
-                        android:textColor="@color/astra_accent"
-                        android:textStyle="bold"
-                        android:textSize="13sp" />
-                                        </com.astra.camera.RotatableLayout>
+                    <TextView
+                        android:id="@+id/tvTimelapseShots"
+                        style="@style/ValueBadge"
+                        android:text="@string/timelapse_shots_infinite" />
                 </LinearLayout>
 
                 <SeekBar
                     android:id="@+id/seekTimelapseShots"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
                     android:max="200"
                     android:progress="0"
                     android:progressTint="@color/astra_accent"
@@ -456,12 +408,9 @@
 
                 <!-- Velocidad (FPS) del video final -->
                 <LinearLayout
-                    android:id="@+id/rowTimelapseFps"
-                    android:clipChildren="false"
-                    android:minHeight="40dp"
-                    android:gravity="center_vertical"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
+                    android:gravity="center_vertical"
                     android:orientation="horizontal"
                     android:layout_marginTop="12dp">
 
@@ -474,25 +423,17 @@
                         android:textStyle="bold"
                         android:textSize="13sp" />
 
-                                        <com.astra.camera.RotatableLayout
-                                            android:id="@+id/rotTimelapseFps"
-                                            android:layout_width="wrap_content"
-                                            android:layout_height="wrap_content">
-                                            <TextView
-                                                android:id="@+id/tvTimelapseFps"
-                                                android:layout_width="wrap_content"
-                                                android:layout_height="wrap_content"
-                        android:text="10 fps"
-                        android:textColor="@color/astra_accent"
-                        android:textStyle="bold"
-                        android:textSize="13sp" />
-                                        </com.astra.camera.RotatableLayout>
+                    <TextView
+                        android:id="@+id/tvTimelapseFps"
+                        style="@style/ValueBadge"
+                        android:text="10 fps" />
                 </LinearLayout>
 
                 <SeekBar
                     android:id="@+id/seekTimelapseFps"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
                     android:max="28"
                     android:progress="8"
                     android:progressTint="@color/astra_accent"
@@ -520,7 +461,6 @@
             <!-- ===== Astrofotografía: ISO alto + exposición larga ===== -->
             <LinearLayout
                 android:id="@+id/contentAstro"
-                android:clipChildren="false"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
@@ -529,12 +469,9 @@
 
                 <!-- ISO astro -->
                 <LinearLayout
-                    android:id="@+id/rowAstroIso"
-                    android:clipChildren="false"
-                    android:minHeight="40dp"
-                    android:gravity="center_vertical"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
+                    android:gravity="center_vertical"
                     android:orientation="horizontal"
                     android:layout_marginTop="8dp">
 
@@ -547,36 +484,25 @@
                         android:textStyle="bold"
                         android:textSize="13sp" />
 
-                                        <com.astra.camera.RotatableLayout
-                                            android:id="@+id/rotAstroIso"
-                                            android:layout_width="wrap_content"
-                                            android:layout_height="wrap_content">
-                                            <TextView
-                                                android:id="@+id/tvAstroIso"
-                                                android:layout_width="wrap_content"
-                                                android:layout_height="wrap_content"
-                        android:text="@string/auto_label"
-                        android:textColor="@color/astra_accent"
-                        android:textStyle="bold"
-                        android:textSize="13sp" />
-                                        </com.astra.camera.RotatableLayout>
+                    <TextView
+                        android:id="@+id/tvAstroIso"
+                        style="@style/ValueBadge"
+                        android:text="@string/auto_label" />
                 </LinearLayout>
 
                 <SeekBar
                     android:id="@+id/seekAstroIso"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
                     android:progressTint="@color/astra_accent"
                     android:thumbTint="@color/astra_accent" />
 
                 <!-- Tiempo de exposición astro -->
                 <LinearLayout
-                    android:id="@+id/rowAstroExposure"
-                    android:clipChildren="false"
-                    android:minHeight="40dp"
-                    android:gravity="center_vertical"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
+                    android:gravity="center_vertical"
                     android:orientation="horizontal"
                     android:layout_marginTop="12dp">
 
@@ -589,25 +515,17 @@
                         android:textStyle="bold"
                         android:textSize="13sp" />
 
-                                        <com.astra.camera.RotatableLayout
-                                            android:id="@+id/rotAstroExposure"
-                                            android:layout_width="wrap_content"
-                                            android:layout_height="wrap_content">
-                                            <TextView
-                                                android:id="@+id/tvAstroExposure"
-                                                android:layout_width="wrap_content"
-                                                android:layout_height="wrap_content"
-                        android:text="@string/auto_label"
-                        android:textColor="@color/astra_accent"
-                        android:textStyle="bold"
-                        android:textSize="13sp" />
-                                        </com.astra.camera.RotatableLayout>
+                    <TextView
+                        android:id="@+id/tvAstroExposure"
+                        style="@style/ValueBadge"
+                        android:text="@string/auto_label" />
                 </LinearLayout>
 
                 <SeekBar
                     android:id="@+id/seekAstroExposure"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
                     android:progressTint="@color/astra_accent"
                     android:thumbTint="@color/astra_accent" />
 
@@ -673,7 +591,6 @@
 
                 <LinearLayout
                     android:id="@+id/groupAstroStackingOptions"
-                android:clipChildren="false"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:orientation="vertical"
@@ -681,12 +598,9 @@
                     tools:visibility="visible">
 
                     <LinearLayout
-                        android:id="@+id/rowAstroStackShots"
-                    android:clipChildren="false"
-                    android:minHeight="40dp"
-                    android:gravity="center_vertical"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
+                        android:gravity="center_vertical"
                         android:orientation="horizontal"
                         android:layout_marginTop="12dp">
 
@@ -699,25 +613,17 @@
                             android:textStyle="bold"
                             android:textSize="13sp" />
 
-                                                <com.astra.camera.RotatableLayout
-                                                    android:id="@+id/rotAstroStackShots"
-                                                    android:layout_width="wrap_content"
-                                                    android:layout_height="wrap_content">
-                                                    <TextView
-                                                        android:id="@+id/tvAstroStackShots"
-                                                        android:layout_width="wrap_content"
-                                                        android:layout_height="wrap_content"
-                            android:text="10"
-                            android:textColor="@color/astra_accent"
-                            android:textStyle="bold"
-                            android:textSize="13sp" />
-                                                </com.astra.camera.RotatableLayout>
+                        <TextView
+                            android:id="@+id/tvAstroStackShots"
+                            style="@style/ValueBadge"
+                            android:text="10" />
                     </LinearLayout>
 
                     <SeekBar
                         android:id="@+id/seekAstroStackShots"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
+                        android:layout_marginTop="4dp"
                         android:max="48"
                         android:progress="8"
                         android:progressTint="@color/astra_accent"
@@ -745,6 +651,7 @@
 
         </LinearLayout>
     </ScrollView>
+
 
     <!-- Barra inferior: galería, captura y cambio de cámara -->
     <androidx.constraintlayout.widget.ConstraintLayout
@@ -853,6 +760,7 @@
                 android:layout_width="18dp"
                 android:layout_height="18dp"
                 android:layout_marginTop="5dp"
+                android:id="@+id/ivTabNormalIcon"
                 android:src="@drawable/ic_auto_mode"
                 app:tint="@color/tab_icon_color"
                 android:duplicateParentState="true"
@@ -891,6 +799,7 @@
                 android:layout_width="18dp"
                 android:layout_height="18dp"
                 android:layout_marginTop="5dp"
+                android:id="@+id/ivTabManualIcon"
                 android:src="@drawable/ic_manual"
                 app:tint="@color/tab_icon_color"
                 android:duplicateParentState="true"
@@ -929,6 +838,7 @@
                 android:layout_width="18dp"
                 android:layout_height="18dp"
                 android:layout_marginTop="5dp"
+                android:id="@+id/ivTabTimelapseIcon"
                 android:src="@drawable/ic_timelapse"
                 app:tint="@color/tab_icon_color"
                 android:duplicateParentState="true"
@@ -967,6 +877,7 @@
                 android:layout_width="18dp"
                 android:layout_height="18dp"
                 android:layout_marginTop="5dp"
+                android:id="@+id/ivTabAstroIcon"
                 android:src="@drawable/ic_astro"
                 app:tint="@color/tab_icon_color"
                 android:duplicateParentState="true"

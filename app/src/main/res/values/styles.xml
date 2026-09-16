@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <!--
+        Badge cuadrado de tamaño FIJO para los valores de los submenús de
+        parámetros (ISO, exposición, contraste, intervalo, fps, etc.).
+
+        Es fijo y cuadrado (40dp x 40dp) a propósito: un cuadrado rotado 90°
+        sigue midiendo exactamente lo mismo (ancho y alto no cambian), así
+        que se puede rotar con View.animate().rotation() -la misma técnica
+        simple que ya funciona para los iconos- sin que se recorte ni se
+        solape con la fila de arriba o abajo, y sin necesitar ningún
+        ViewGroup personalizado ni medición dinámica en tiempo de ejecución.
+
+        android:autoSizeText encoge el texto automáticamente si el valor es
+        más largo de lo normal (p. ej. un ISO de 5 dígitos), en vez de
+        recortarlo o desbordar el badge.
+    -->
+    <style name="ValueBadge">
+        <item name="android:layout_width">40dp</item>
+        <item name="android:layout_height">40dp</item>
+        <item name="android:gravity">center</item>
+        <item name="android:background">@drawable/bg_value_badge</item>
+        <item name="android:textColor">@color/astra_accent</item>
+        <item name="android:textStyle">bold</item>
+        <item name="android:maxLines">1</item>
+        <item name="android:includeFontPadding">false</item>
+        <item name="android:autoSizeTextType">uniform</item>
+        <item name="android:autoSizeMinTextSize">8sp</item>
+        <item name="android:autoSizeMaxTextSize">13sp</item>
+        <item name="android:autoSizeStepGranularity">1sp</item>
+    </style>
+
+</resources>
