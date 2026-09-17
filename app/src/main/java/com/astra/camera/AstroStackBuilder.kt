@@ -16,10 +16,12 @@ import java.io.FileOutputStream
  * señal real de la escena (estrellas, paisaje) se mantiene, ya que es
  * consistente entre fotogramas.
  *
- * No realiza alineación entre fotogramas: asume que la cámara estuvo
- * completamente fija (trípode) durante toda la secuencia, tal como se
- * indica al usuario en el submenú de Astro. Es la misma limitación de
- * cualquier "stacking" básico sin seguimiento de estrellas.
+ * Con [alignStars] activado (recomendado), cada fotograma se desplaza en
+ * X/Y antes de sumarse, según el resultado de [StarAligner], para corregir
+ * pequeños movimientos de la cámara o de la rotación terrestre entre
+ * fotogramas y evitar que las estrellas se vean como rayas en vez de
+ * puntos nítidos. Sin alineación, se asume que la cámara estuvo
+ * completamente fija (trípode) durante toda la secuencia.
  */
 object AstroStackBuilder {
 
@@ -28,16 +30,28 @@ object AstroStackBuilder {
 
     /**
      * Procesa el stacking en un hilo secundario y notifica el resultado en
-     * el hilo principal a través de [onComplete].
+     * el hilo principal a través de [onComplete]. Si [alignStars] es true,
+     * antes de apilar se llama a [onAligning] (en el hilo principal) para
+     * que la UI pueda mostrar un estado tipo "Alineando estrellas...".
      */
     fun buildStackAsync(
         frameFiles: List<File>,
         outputFile: File,
+        alignStars: Boolean,
+        onAligning: () -> Unit,
         onComplete: (success: Boolean) -> Unit
     ) {
         Thread({
             val success = try {
-                buildStack(frameFiles, outputFile)
+                if (alignStars) {
+                    Handler(Looper.getMainLooper()).post { onAligning() }
+                }
+                val offsets = if (alignStars) {
+                    StarAligner.computeAlignmentOffsets(frameFiles)
+                } else {
+                    List(frameFiles.size) { StarAligner.Offset(0, 0) }
+                }
+                buildStack(frameFiles, outputFile, offsets)
                 true
             } catch (e: Exception) {
                 Log.e(TAG, "Error apilando las imágenes", e)
@@ -48,7 +62,7 @@ object AstroStackBuilder {
         }, "astra-stack-builder").start()
     }
 
-    private fun buildStack(frameFiles: List<File>, outputFile: File) {
+    private fun buildStack(frameFiles: List<File>, outputFile: File, offsets: List<StarAligner.Offset>) {
         require(frameFiles.isNotEmpty()) { "No hay fotogramas para apilar" }
         Log.d(TAG, "Apilando ${frameFiles.size} fotogramas -> ${outputFile.absolutePath}")
 
@@ -66,20 +80,47 @@ object AstroStackBuilder {
         val sumR = IntArray(pixelCount)
         val sumG = IntArray(pixelCount)
         val sumB = IntArray(pixelCount)
+        // Cuántos fotogramas contribuyeron a cada píxel. Con alineación, no
+        // todos los píxeles reciben aporte de todos los fotogramas: los
+        // bordes de un fotograma desplazado quedan fuera de encuadre, así
+        // que no se puede dividir simplemente por el total de fotogramas.
+        val countPerPixel = IntArray(pixelCount)
         val pixels = IntArray(pixelCount)
 
-        fun accumulate(bitmap: Bitmap) {
+        fun accumulate(bitmap: Bitmap, offsetX: Int, offsetY: Int) {
             bitmap.getPixels(pixels, 0, width, 0, 0, width, height)
-            for (i in 0 until pixelCount) {
-                val p = pixels[i]
-                sumR[i] += (p shr 16) and 0xFF
-                sumG[i] += (p shr 8) and 0xFF
-                sumB[i] += p and 0xFF
+            if (offsetX == 0 && offsetY == 0) {
+                // Camino rápido, sin remuestreo de coordenadas.
+                for (i in 0 until pixelCount) {
+                    val p = pixels[i]
+                    sumR[i] += (p shr 16) and 0xFF
+                    sumG[i] += (p shr 8) and 0xFF
+                    sumB[i] += p and 0xFF
+                    countPerPixel[i]++
+                }
+                return
+            }
+            for (y in 0 until height) {
+                val srcY = y - offsetY
+                if (srcY < 0 || srcY >= height) continue
+                val destRow = y * width
+                val srcRow = srcY * width
+                for (x in 0 until width) {
+                    val srcX = x - offsetX
+                    if (srcX < 0 || srcX >= width) continue
+                    val p = pixels[srcRow + srcX]
+                    val destIndex = destRow + x
+                    sumR[destIndex] += (p shr 16) and 0xFF
+                    sumG[destIndex] += (p shr 8) and 0xFF
+                    sumB[destIndex] += p and 0xFF
+                    countPerPixel[destIndex]++
+                }
             }
         }
 
         var framesUsed = 0
-        accumulate(first)
+        val firstOffset = offsets.getOrElse(0) { StarAligner.Offset(0, 0) }
+        accumulate(first, firstOffset.dx, firstOffset.dy)
         framesUsed++
         first.recycle()
 
@@ -95,7 +136,8 @@ object AstroStackBuilder {
                 bitmap.recycle()
                 continue
             }
-            accumulate(bitmap)
+            val offset = offsets.getOrElse(index) { StarAligner.Offset(0, 0) }
+            accumulate(bitmap, offset.dx, offset.dy)
             framesUsed++
             bitmap.recycle()
         }
@@ -104,9 +146,13 @@ object AstroStackBuilder {
 
         val resultPixels = IntArray(pixelCount)
         for (i in 0 until pixelCount) {
-            val r = (sumR[i] / framesUsed).coerceIn(0, 255)
-            val g = (sumG[i] / framesUsed).coerceIn(0, 255)
-            val b = (sumB[i] / framesUsed).coerceIn(0, 255)
+            // Se divide por el conteo REAL de ese píxel, no por framesUsed:
+            // en los bordes de fotogramas desplazados, algunos píxeles
+            // reciben aporte de menos fotogramas que el centro de la imagen.
+            val count = countPerPixel[i].coerceAtLeast(1)
+            val r = (sumR[i] / count).coerceIn(0, 255)
+            val g = (sumG[i] / count).coerceIn(0, 255)
+            val b = (sumB[i] / count).coerceIn(0, 255)
             resultPixels[i] = (0xFF shl 24) or (r shl 16) or (g shl 8) or b
         }
 

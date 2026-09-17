@@ -59,6 +59,9 @@
     <string name="astro_stacking_saved">Imagen apilada guardada en la galería (%1$d fotos) ✓</string>
     <string name="astro_stacking_error">Error al generar la imagen apilada</string>
     <string name="astro_stacking_no_frames">No se capturó ninguna foto</string>
+    <string name="astro_align_stars_label">Alinear estrellas</string>
+    <string name="astro_align_stars_note">Corrige pequeños movimientos de la cámara o de la rotación terrestre entre fotos, para que las estrellas queden como puntos nítidos en vez de rayas. Recomendado dejarlo activado.</string>
+    <string name="astro_stacking_aligning">Alineando estrellas…</string>
     <string name="capture_long_exposure_label">Exposición larga en curso…</string>
     <string name="capture_processing">Procesando…</string>
 

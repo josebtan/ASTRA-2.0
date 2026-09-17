@@ -91,6 +91,10 @@ class MainActivity : AppCompatActivity() {
     private var astroStackShotsTaken = 0
     private var isAstroStackingRunning = false
     private var astroStackCaptureInFlight = false
+    // Alinea las estrellas entre fotogramas antes de promediarlas (corrige
+    // pequeños movimientos de la cámara o la rotación terrestre). Activado
+    // por defecto: es lo recomendado salvo casos muy específicos.
+    private var astroAlignStars = true
     // Carpeta temporal (caché de la app) donde se guardan los fotogramas de
     // la sesión de stacking en curso, antes de promediarlos en una imagen final.
     private var astroStackFramesDir: File? = null
@@ -849,6 +853,10 @@ class MainActivity : AppCompatActivity() {
             if (!isChecked && isAstroStackingRunning) stopAstroStacking()
         }
 
+        binding.switchAstroAlignStars.setOnCheckedChangeListener { _, isChecked ->
+            astroAlignStars = isChecked
+        }
+
         binding.seekAstroStackShots.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(seekBar: SeekBar, progress: Int, fromUser: Boolean) {
                 astroStackTargetShots = progress + 2 // 2..50 fotos
@@ -1031,7 +1039,16 @@ class MainActivity : AppCompatActivity() {
         val fileName = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(System.currentTimeMillis())
         val outputImage = File(outputDirectory, "ASTRA_STACK_$fileName.jpg")
 
-        AstroStackBuilder.buildStackAsync(frameFiles, outputImage) { success ->
+        AstroStackBuilder.buildStackAsync(
+            frameFiles,
+            outputImage,
+            alignStars = astroAlignStars,
+            onAligning = {
+                if (!isFinishing && !isDestroyed) {
+                    binding.tvAstroStackStatus.text = getString(R.string.astro_stacking_aligning)
+                }
+            }
+        ) { success ->
             framesDir?.deleteRecursively()
             if (isFinishing || isDestroyed) return@buildStackAsync
 

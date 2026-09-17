@@ -629,6 +629,41 @@
                         android:progressTint="@color/astra_accent"
                         android:thumbTint="@color/astra_accent" />
 
+                    <!-- Alineación de estrellas: corrige pequeños movimientos
+                         de la cámara o la rotación terrestre entre fotogramas
+                         antes de promediarlos, para que las estrellas queden
+                         como puntos nítidos y no como rayas. -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:layout_marginTop="12dp">
+
+                        <TextView
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="@string/astro_align_stars_label"
+                            android:textColor="@color/astra_white"
+                            android:textStyle="bold"
+                            android:textSize="13sp" />
+
+                        <androidx.appcompat.widget.SwitchCompat
+                            android:id="@+id/switchAstroAlignStars"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:checked="true" />
+                    </LinearLayout>
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="6dp"
+                        android:text="@string/astro_align_stars_note"
+                        android:textColor="@color/astra_gray"
+                        android:textSize="11sp" />
+
                     <TextView
                         android:id="@+id/tvAstroStackStatus"
                         android:layout_width="match_parent"
