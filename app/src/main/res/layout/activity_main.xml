@@ -1093,4 +1093,52 @@
 
     </LinearLayout>
 
+    <!-- Salvapantallas: fondo negro puro (apaga los píxeles en pantallas
+         OLED) que se muestra durante un timelapse/stacking largo en vez de
+         la previsualización de cámara con toda su luminosidad, para ahorrar
+         batería mientras el teléfono está desatendido. Toca para ver la
+         cámara unos segundos; vuelve a activarse solo si la secuencia sigue
+         en curso. -->
+    <FrameLayout
+        android:id="@+id/screensaverOverlay"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:background="@android:color/black"
+        android:visibility="gone"
+        android:clickable="true"
+        android:focusable="true"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        tools:visibility="visible">
+
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:orientation="vertical"
+            android:gravity="center">
+
+            <TextView
+                android:id="@+id/tvScreensaverCounter"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textColor="@color/astra_accent"
+                android:textStyle="bold"
+                android:textSize="40sp"
+                tools:text="12 / 50" />
+
+            <TextView
+                android:id="@+id/tvScreensaverSubtitle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:textColor="@color/astra_gray"
+                android:textSize="13sp"
+                tools:text="Timelapse en curso · Toca para ver la cámara" />
+        </LinearLayout>
+
+    </FrameLayout>
+
 </androidx.constraintlayout.widget.ConstraintLayout>

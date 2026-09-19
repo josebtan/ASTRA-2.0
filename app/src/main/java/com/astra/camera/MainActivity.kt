@@ -119,6 +119,10 @@ class MainActivity : AppCompatActivity() {
     // --- Overlay de progreso para capturas de exposición larga (Astro) ---
     private var captureProgressTimer: CountDownTimer? = null
 
+    // --- Salvapantallas (ahorro de batería durante timelapse/stacking) ---
+    private val screensaverHandler = Handler(Looper.getMainLooper())
+    private var screensaverRunnable: Runnable? = null
+
     // --- Capacidades del sensor (dependen de la cámara frontal/trasera activa) ---
     private var isoRange: Range<Int>? = null
     private var exposureTimeRange: Range<Long>? = null
@@ -161,6 +165,7 @@ class MainActivity : AppCompatActivity() {
         binding.btnGallery.setOnClickListener {
             startActivity(Intent(this, GalleryActivity::class.java))
         }
+        binding.screensaverOverlay.setOnClickListener { hideScreensaverTemporarily() }
 
         setupModesTabBar()
         setupManualSection()
@@ -202,6 +207,58 @@ class MainActivity : AppCompatActivity() {
             window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         } else {
             window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        }
+    }
+
+    // ============================================================
+    // Salvapantallas: fondo negro con solo el contador, para ahorrar
+    // batería durante un timelapse/stacking largo. Mantener la pantalla
+    // encendida (FLAG_KEEP_SCREEN_ON) ya evita que Android la apague sola,
+    // pero la previsualización de cámara a pantalla completa, brillante,
+    // sigue consumiendo bastante batería mientras el teléfono está
+    // desatendido: en una pantalla OLED, negro puro prácticamente no
+    // consume nada.
+    // ============================================================
+
+    private fun scheduleScreensaverShow(delayMs: Long) {
+        screensaverRunnable?.let { screensaverHandler.removeCallbacks(it) }
+        val runnable = Runnable { showScreensaver() }
+        screensaverRunnable = runnable
+        screensaverHandler.postDelayed(runnable, delayMs)
+    }
+
+    private fun showScreensaver() {
+        if (!isTimelapseRunning && !isAstroStackingRunning) return
+        binding.tvScreensaverSubtitle.text = if (isTimelapseRunning) {
+            getString(R.string.screensaver_timelapse_hint)
+        } else {
+            getString(R.string.screensaver_stacking_hint)
+        }
+        updateScreensaverCounter()
+        binding.screensaverOverlay.visibility = View.VISIBLE
+    }
+
+    /** El usuario tocó la pantalla para ver la cámara: se oculta el salvapantallas
+     *  unos segundos y luego se reactiva solo, si la secuencia sigue en curso. */
+    private fun hideScreensaverTemporarily() {
+        binding.screensaverOverlay.visibility = View.GONE
+        if (isTimelapseRunning || isAstroStackingRunning) {
+            scheduleScreensaverShow(SCREENSAVER_REENGAGE_DELAY_MS)
+        }
+    }
+
+    private fun hideScreensaverForGood() {
+        screensaverRunnable?.let { screensaverHandler.removeCallbacks(it) }
+        screensaverRunnable = null
+        binding.screensaverOverlay.visibility = View.GONE
+    }
+
+    private fun updateScreensaverCounter() {
+        if (binding.screensaverOverlay.visibility != View.VISIBLE) return
+        binding.tvScreensaverCounter.text = when {
+            isTimelapseRunning -> timelapseShotsTaken.toString()
+            isAstroStackingRunning -> "$astroStackShotsTaken / $astroStackTargetShots"
+            else -> ""
         }
     }
 
@@ -661,6 +718,7 @@ class MainActivity : AppCompatActivity() {
         timelapseCaptureInFlight = false
         timelapseShotsTaken = 0
         updateKeepScreenOn()
+        scheduleScreensaverShow(SCREENSAVER_INITIAL_DELAY_MS)
         binding.btnCapture.isSelected = true
         binding.timelapseInfoPill.visibility = View.VISIBLE
         updateTimelapseInfoPill()
@@ -731,6 +789,7 @@ class MainActivity : AppCompatActivity() {
         if (!isTimelapseRunning) return
         isTimelapseRunning = false
         updateKeepScreenOn()
+        hideScreensaverForGood()
         timelapseRunnable?.let { timelapseHandler.removeCallbacks(it) }
         timelapseRunnable = null
         binding.btnCapture.isSelected = false
@@ -813,6 +872,7 @@ class MainActivity : AppCompatActivity() {
         val seconds = frameCountForDuration.toFloat() / timelapseVideoFps
         binding.tvTimelapseInfoDuration.text =
             getString(R.string.timelapse_info_duration, formatTimelapseDuration(seconds))
+        updateScreensaverCounter()
     }
 
     private fun formatTimelapseDuration(seconds: Float): String {
@@ -961,6 +1021,7 @@ class MainActivity : AppCompatActivity() {
         astroStackCaptureInFlight = false
         astroStackShotsTaken = 0
         updateKeepScreenOn()
+        scheduleScreensaverShow(SCREENSAVER_INITIAL_DELAY_MS)
         binding.btnCapture.isSelected = true
         binding.astroStackInfoPill.visibility = View.VISIBLE
         updateAstroStackInfoPill()
@@ -1037,6 +1098,7 @@ class MainActivity : AppCompatActivity() {
         if (!isAstroStackingRunning) return
         isAstroStackingRunning = false
         updateKeepScreenOn()
+        hideScreensaverForGood()
         binding.btnCapture.isSelected = false
         binding.astroStackInfoPill.visibility = View.GONE
         updateAstroStackStatus()
@@ -1113,6 +1175,7 @@ class MainActivity : AppCompatActivity() {
     private fun updateAstroStackInfoPill() {
         binding.tvAstroStackInfo.text =
             getString(R.string.astro_stacking_status_running, astroStackShotsTaken, astroStackTargetShots)
+        updateScreensaverCounter()
     }
 
     // ============================================================
@@ -1379,6 +1442,13 @@ class MainActivity : AppCompatActivity() {
 
     companion object {
         private const val TAG = "AstraCamera"
+
+        // Salvapantallas: cuánto tarda en activarse tras iniciar la
+        // secuencia (deja ver que arrancó bien antes de ponerse en negro),
+        // y cuánto tarda en reactivarse tras tocar la pantalla para ver
+        // la cámara.
+        private const val SCREENSAVER_INITIAL_DELAY_MS = 4_000L
+        private const val SCREENSAVER_REENGAGE_DELAY_MS = 8_000L
 
         // Tiempo de exposición por defecto (1/100s) usado al fijar un ISO manual,
         // ya que al desactivar la exposición automática también hay que fijar

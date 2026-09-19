@@ -64,6 +64,10 @@
     <string name="astro_stacking_aligning">Alineando estrellas…</string>
     <string name="astro_boost_contrast_label">Contraste fondo/estrellas</string>
     <string name="astro_boost_contrast_note">Oscurece el fondo del cielo y resalta las estrellas frente a él, ajustando automáticamente el punto negro de la imagen apilada final.</string>
+
+    <!-- Salvapantallas (ahorro de batería durante timelapse/stacking) -->
+    <string name="screensaver_timelapse_hint">Timelapse en curso · Toca para ver la cámara</string>
+    <string name="screensaver_stacking_hint">Stacking en curso · Toca para ver la cámara</string>
     <string name="capture_long_exposure_label">Exposición larga en curso…</string>
     <string name="capture_processing">Procesando…</string>
 
