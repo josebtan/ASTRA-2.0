@@ -22,11 +22,28 @@ import java.io.FileOutputStream
  * fotogramas y evitar que las estrellas se vean como rayas en vez de
  * puntos nítidos. Sin alineación, se asume que la cámara estuvo
  * completamente fija (trípode) durante toda la secuencia.
+ *
+ * Con [boostContrast] activado, al final se aplica un "estiramiento" de
+ * punto negro sobre la imagen ya apilada: se detecta el nivel de brillo
+ * típico del fondo del cielo (la inmensa mayoría de los píxeles de una
+ * foto nocturna) y se lleva ese nivel a negro puro, redistribuyendo el
+ * resto del rango hacia arriba. El resultado es que el fondo se ve mucho
+ * más oscuro y uniforme, y las estrellas (que ya estaban por encima de ese
+ * nivel) resaltan con más contraste frente a él — la misma idea que el
+ * ajuste de "niveles"/"curvas" que se usa en cualquier software de
+ * astrofotografía tras el stacking.
  */
 object AstroStackBuilder {
 
     private const val TAG = "AstroStackBuilder"
     private const val JPEG_QUALITY = 95
+
+    // Percentil de luminancia usado como "punto negro" al aumentar el
+    // contraste: en una foto nocturna, la gran mayoría de los píxeles SON
+    // el fondo del cielo, así que este umbral se adapta automáticamente a
+    // cuán oscuro/claro estaba el cielo (contaminación lumínica, ISO usado,
+    // etc.) en vez de usar un valor fijo.
+    private const val BACKGROUND_PERCENTILE = 0.35
 
     /**
      * Procesa el stacking en un hilo secundario y notifica el resultado en
@@ -38,6 +55,7 @@ object AstroStackBuilder {
         frameFiles: List<File>,
         outputFile: File,
         alignStars: Boolean,
+        boostContrast: Boolean,
         onAligning: () -> Unit,
         onComplete: (success: Boolean) -> Unit
     ) {
@@ -51,7 +69,7 @@ object AstroStackBuilder {
                 } else {
                     List(frameFiles.size) { StarAligner.Offset(0, 0) }
                 }
-                buildStack(frameFiles, outputFile, offsets)
+                buildStack(frameFiles, outputFile, offsets, boostContrast)
                 true
             } catch (e: Exception) {
                 Log.e(TAG, "Error apilando las imágenes", e)
@@ -62,7 +80,12 @@ object AstroStackBuilder {
         }, "astra-stack-builder").start()
     }
 
-    private fun buildStack(frameFiles: List<File>, outputFile: File, offsets: List<StarAligner.Offset>) {
+    private fun buildStack(
+        frameFiles: List<File>,
+        outputFile: File,
+        offsets: List<StarAligner.Offset>,
+        boostContrast: Boolean
+    ) {
         require(frameFiles.isNotEmpty()) { "No hay fotogramas para apilar" }
         Log.d(TAG, "Apilando ${frameFiles.size} fotogramas -> ${outputFile.absolutePath}")
 
@@ -156,6 +179,10 @@ object AstroStackBuilder {
             resultPixels[i] = (0xFF shl 24) or (r shl 16) or (g shl 8) or b
         }
 
+        if (boostContrast) {
+            applyBackgroundContrastBoost(resultPixels)
+        }
+
         val resultBitmap = Bitmap.createBitmap(resultPixels, width, height, Bitmap.Config.ARGB_8888)
         try {
             FileOutputStream(outputFile).use { out ->
@@ -166,5 +193,60 @@ object AstroStackBuilder {
         }
 
         Log.d(TAG, "Stack generado correctamente con $framesUsed de ${frameFiles.size} fotogramas")
+    }
+
+    /**
+     * Estira el punto negro de la imagen ya apilada para separar más el
+     * fondo del cielo de las estrellas: detecta, vía un histograma de
+     * luminancia, el nivel de brillo por debajo del cual cae el
+     * [BACKGROUND_PERCENTILE] de los píxeles (una buena estimación del
+     * "fondo del cielo" en una foto nocturna, ya que domina el histograma),
+     * lo lleva a negro puro, y reescala el resto del rango (ese nivel..255)
+     * a 0..255. Los píxeles de fondo se oscurecen y se vuelven más
+     * uniformes; las estrellas, que ya estaban por encima de ese nivel,
+     * quedan más brillantes en comparación.
+     */
+    private fun applyBackgroundContrastBoost(pixels: IntArray) {
+        val pixelCount = pixels.size
+        if (pixelCount == 0) return
+
+        val histogram = IntArray(256)
+        for (i in 0 until pixelCount) {
+            val p = pixels[i]
+            val r = (p shr 16) and 0xFF
+            val g = (p shr 8) and 0xFF
+            val b = p and 0xFF
+            val luminance = (r * 299 + g * 587 + b * 114) / 1000
+            histogram[luminance]++
+        }
+
+        val targetCount = (pixelCount * BACKGROUND_PERCENTILE).toInt()
+        var cumulative = 0
+        var blackPoint = 0
+        for (level in 0..255) {
+            cumulative += histogram[level]
+            if (cumulative >= targetCount) {
+                blackPoint = level
+                break
+            }
+        }
+
+        // Si el punto negro calculado es prácticamente 0 (cielo ya muy
+        // oscuro y limpio) o cubre casi todo el rango (imagen ya muy
+        // brillante/sobreexpuesta), el estiramiento no aportaría nada útil
+        // o directamente arruinaría la imagen: se deja tal cual.
+        if (blackPoint <= 0 || blackPoint >= 250) return
+
+        val range = (255 - blackPoint).coerceAtLeast(1)
+        for (i in 0 until pixelCount) {
+            val p = pixels[i]
+            val r = (p shr 16) and 0xFF
+            val g = (p shr 8) and 0xFF
+            val b = p and 0xFF
+            val newR = (((r - blackPoint).coerceAtLeast(0) * 255) / range).coerceIn(0, 255)
+            val newG = (((g - blackPoint).coerceAtLeast(0) * 255) / range).coerceIn(0, 255)
+            val newB = (((b - blackPoint).coerceAtLeast(0) * 255) / range).coerceIn(0, 255)
+            pixels[i] = (0xFF shl 24) or (newR shl 16) or (newG shl 8) or newB
+        }
     }
 }

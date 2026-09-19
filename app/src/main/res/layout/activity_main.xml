@@ -664,6 +664,40 @@
                         android:textColor="@color/astra_gray"
                         android:textSize="11sp" />
 
+                    <!-- Contraste fondo/estrellas: estira el punto negro de la
+                         imagen apilada final para oscurecer el fondo del
+                         cielo y que las estrellas resalten más frente a él. -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:layout_marginTop="12dp">
+
+                        <TextView
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="@string/astro_boost_contrast_label"
+                            android:textColor="@color/astra_white"
+                            android:textStyle="bold"
+                            android:textSize="13sp" />
+
+                        <androidx.appcompat.widget.SwitchCompat
+                            android:id="@+id/switchAstroBoostContrast"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:checked="true" />
+                    </LinearLayout>
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="6dp"
+                        android:text="@string/astro_boost_contrast_note"
+                        android:textColor="@color/astra_gray"
+                        android:textSize="11sp" />
+
                     <TextView
                         android:id="@+id/tvAstroStackStatus"
                         android:layout_width="match_parent"

@@ -16,6 +16,7 @@ import android.view.Gravity
 import android.view.OrientationEventListener
 import android.view.Surface
 import android.view.View
+import android.view.WindowManager
 import android.widget.SeekBar
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
@@ -95,6 +96,9 @@ class MainActivity : AppCompatActivity() {
     // pequeños movimientos de la cámara o la rotación terrestre). Activado
     // por defecto: es lo recomendado salvo casos muy específicos.
     private var astroAlignStars = true
+    // Estira el punto negro de la imagen apilada final para separar más el
+    // fondo del cielo de las estrellas (más contraste entre ambos).
+    private var astroBoostContrast = true
     // Carpeta temporal (caché de la app) donde se guardan los fotogramas de
     // la sesión de stacking en curso, antes de promediarlos en una imagen final.
     private var astroStackFramesDir: File? = null
@@ -178,6 +182,27 @@ class MainActivity : AppCompatActivity() {
         orientationEventListener.disable()
         if (isTimelapseRunning) stopTimelapse()
         if (isAstroStackingRunning) stopAstroStacking()
+    }
+
+    /**
+     * Mantiene la pantalla encendida (sin bajar el brillo ni bloquearse por
+     * inactividad) mientras hay un timelapse o un stacking en curso. Sin
+     * esto, si el usuario no toca la pantalla, Android la apaga por
+     * inactividad al rato, la Activity pasa a onPause() y la secuencia se
+     * detiene a mitad de camino.
+     *
+     * Esto NO evita que se detenga si el usuario apaga la pantalla a
+     * propósito con el botón de encendido: eso es un apagado físico, no un
+     * timeout por inactividad, y Android sí pausa la app en ese caso
+     * (ninguna app de cámara puede evitarlo sin un servicio en primer plano
+     * con la cámara, que es una arquitectura mucho más compleja).
+     */
+    private fun updateKeepScreenOn() {
+        if (isTimelapseRunning || isAstroStackingRunning) {
+            window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        } else {
+            window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        }
     }
 
     private fun hasCameraPermission() =
@@ -635,6 +660,7 @@ class MainActivity : AppCompatActivity() {
         isTimelapseRunning = true
         timelapseCaptureInFlight = false
         timelapseShotsTaken = 0
+        updateKeepScreenOn()
         binding.btnCapture.isSelected = true
         binding.timelapseInfoPill.visibility = View.VISIBLE
         updateTimelapseInfoPill()
@@ -704,6 +730,7 @@ class MainActivity : AppCompatActivity() {
     private fun stopTimelapse() {
         if (!isTimelapseRunning) return
         isTimelapseRunning = false
+        updateKeepScreenOn()
         timelapseRunnable?.let { timelapseHandler.removeCallbacks(it) }
         timelapseRunnable = null
         binding.btnCapture.isSelected = false
@@ -857,6 +884,10 @@ class MainActivity : AppCompatActivity() {
             astroAlignStars = isChecked
         }
 
+        binding.switchAstroBoostContrast.setOnCheckedChangeListener { _, isChecked ->
+            astroBoostContrast = isChecked
+        }
+
         binding.seekAstroStackShots.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(seekBar: SeekBar, progress: Int, fromUser: Boolean) {
                 astroStackTargetShots = progress + 2 // 2..50 fotos
@@ -929,6 +960,7 @@ class MainActivity : AppCompatActivity() {
         isAstroStackingRunning = true
         astroStackCaptureInFlight = false
         astroStackShotsTaken = 0
+        updateKeepScreenOn()
         binding.btnCapture.isSelected = true
         binding.astroStackInfoPill.visibility = View.VISIBLE
         updateAstroStackInfoPill()
@@ -1004,6 +1036,7 @@ class MainActivity : AppCompatActivity() {
     private fun stopAstroStacking() {
         if (!isAstroStackingRunning) return
         isAstroStackingRunning = false
+        updateKeepScreenOn()
         binding.btnCapture.isSelected = false
         binding.astroStackInfoPill.visibility = View.GONE
         updateAstroStackStatus()
@@ -1043,6 +1076,7 @@ class MainActivity : AppCompatActivity() {
             frameFiles,
             outputImage,
             alignStars = astroAlignStars,
+            boostContrast = astroBoostContrast,
             onAligning = {
                 if (!isFinishing && !isDestroyed) {
                     binding.tvAstroStackStatus.text = getString(R.string.astro_stacking_aligning)

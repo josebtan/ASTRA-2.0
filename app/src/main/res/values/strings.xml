@@ -62,6 +62,8 @@
     <string name="astro_align_stars_label">Alinear estrellas</string>
     <string name="astro_align_stars_note">Corrige pequeños movimientos de la cámara o de la rotación terrestre entre fotos, para que las estrellas queden como puntos nítidos en vez de rayas. Recomendado dejarlo activado.</string>
     <string name="astro_stacking_aligning">Alineando estrellas…</string>
+    <string name="astro_boost_contrast_label">Contraste fondo/estrellas</string>
+    <string name="astro_boost_contrast_note">Oscurece el fondo del cielo y resalta las estrellas frente a él, ajustando automáticamente el punto negro de la imagen apilada final.</string>
     <string name="capture_long_exposure_label">Exposición larga en curso…</string>
     <string name="capture_processing">Procesando…</string>
 
