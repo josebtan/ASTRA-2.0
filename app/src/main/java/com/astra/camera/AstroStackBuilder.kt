@@ -1,5 +1,6 @@
 package com.astra.camera
 
+import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.os.Handler
@@ -20,29 +21,31 @@ import java.io.FileOutputStream
  * X/Y antes de sumarse, según el resultado de [StarAligner], para corregir
  * pequeños movimientos de la cámara o de la rotación terrestre entre
  * fotogramas y evitar que las estrellas se vean como rayas en vez de
- * puntos nítidos. Sin alineación, se asume que la cámara estuvo
- * completamente fija (trípode) durante toda la secuencia.
+ * puntos nítidos.
  *
- * Con [boostContrast] activado, al final se aplica un "estiramiento" de
- * punto negro sobre la imagen ya apilada: se detecta el nivel de brillo
- * típico del fondo del cielo (la inmensa mayoría de los píxeles de una
- * foto nocturna) y se lleva ese nivel a negro puro, redistribuyendo el
- * resto del rango hacia arriba. El resultado es que el fondo se ve mucho
- * más oscuro y uniforme, y las estrellas (que ya estaban por encima de ese
- * nivel) resaltan con más contraste frente a él — la misma idea que el
- * ajuste de "niveles"/"curvas" que se usa en cualquier software de
- * astrofotografía tras el stacking.
+ * Con [applyBiasCorrection] activado, se resta el bias maestro (ver
+ * [BiasCalibrator]) de la imagen ya apilada, eliminando el ruido de patrón
+ * fijo propio del sensor antes de cualquier otro ajuste.
+ *
+ * Con [boostContrast] activado, se estira el punto negro (basado en
+ * luminancia) para separar más el fondo del cielo de las estrellas.
+ *
+ * Con [filterLightPollution] activado, se hace lo mismo pero de forma
+ * INDEPENDIENTE por canal (R, G y B por separado). Esto no solo aumenta el
+ * contraste: al normalizar cada canal a su propio "punto negro", neutraliza
+ * el tinte de color parejo que la contaminación lumínica (sodio, LED, etc.)
+ * añade sobre toda la imagen — el mismo principio que un filtro físico
+ * anti-contaminación lumínica, aplicado por software tras el stacking.
  */
 object AstroStackBuilder {
 
     private const val TAG = "AstroStackBuilder"
     private const val JPEG_QUALITY = 95
 
-    // Percentil de luminancia usado como "punto negro" al aumentar el
-    // contraste: en una foto nocturna, la gran mayoría de los píxeles SON
-    // el fondo del cielo, así que este umbral se adapta automáticamente a
-    // cuán oscuro/claro estaba el cielo (contaminación lumínica, ISO usado,
-    // etc.) en vez de usar un valor fijo.
+    // Percentil de brillo usado como "punto negro": en una foto nocturna,
+    // la gran mayoría de los píxeles SON el fondo del cielo, así que este
+    // umbral se adapta automáticamente a cuán oscuro/claro estaba el cielo
+    // (contaminación lumínica, ISO usado, etc.) en vez de usar un valor fijo.
     private const val BACKGROUND_PERCENTILE = 0.35
 
     /**
@@ -52,10 +55,13 @@ object AstroStackBuilder {
      * que la UI pueda mostrar un estado tipo "Alineando estrellas...".
      */
     fun buildStackAsync(
+        context: Context,
         frameFiles: List<File>,
         outputFile: File,
         alignStars: Boolean,
+        applyBiasCorrection: Boolean,
         boostContrast: Boolean,
+        filterLightPollution: Boolean,
         onAligning: () -> Unit,
         onComplete: (success: Boolean) -> Unit
     ) {
@@ -69,7 +75,10 @@ object AstroStackBuilder {
                 } else {
                     List(frameFiles.size) { StarAligner.Offset(0, 0) }
                 }
-                buildStack(frameFiles, outputFile, offsets, boostContrast)
+                buildStack(
+                    context, frameFiles, outputFile, offsets,
+                    applyBiasCorrection, boostContrast, filterLightPollution
+                )
                 true
             } catch (e: Exception) {
                 Log.e(TAG, "Error apilando las imágenes", e)
@@ -81,10 +90,13 @@ object AstroStackBuilder {
     }
 
     private fun buildStack(
+        context: Context,
         frameFiles: List<File>,
         outputFile: File,
         offsets: List<StarAligner.Offset>,
-        boostContrast: Boolean
+        applyBiasCorrection: Boolean,
+        boostContrast: Boolean,
+        filterLightPollution: Boolean
     ) {
         require(frameFiles.isNotEmpty()) { "No hay fotogramas para apilar" }
         Log.d(TAG, "Apilando ${frameFiles.size} fotogramas -> ${outputFile.absolutePath}")
@@ -179,8 +191,26 @@ object AstroStackBuilder {
             resultPixels[i] = (0xFF shl 24) or (r shl 16) or (g shl 8) or b
         }
 
+        // El orden importa: primero se limpia el ruido propio del sensor
+        // (bias), y solo DESPUÉS se estira el contraste/color sobre una
+        // imagen ya más limpia — estirar antes de restar el bias
+        // amplificaría también ese ruido de fondo.
+        if (applyBiasCorrection) {
+            val masterBias = BiasCalibrator.loadMasterBias(context, width, height)
+            if (masterBias != null) {
+                subtractBias(resultPixels, masterBias)
+                masterBias.recycle()
+            } else {
+                Log.w(TAG, "Corrección de bias activada pero no hay un bias maestro válido para esta resolución, se omite")
+            }
+        }
+
         if (boostContrast) {
-            applyBackgroundContrastBoost(resultPixels)
+            applyLuminanceContrastBoost(resultPixels)
+        }
+
+        if (filterLightPollution) {
+            applyPerChannelContrastBoost(resultPixels)
         }
 
         val resultBitmap = Bitmap.createBitmap(resultPixels, width, height, Bitmap.Config.ARGB_8888)
@@ -195,6 +225,26 @@ object AstroStackBuilder {
         Log.d(TAG, "Stack generado correctamente con $framesUsed de ${frameFiles.size} fotogramas")
     }
 
+    /** Resta, píxel a píxel y canal a canal, el bias maestro de la imagen apilada. */
+    private fun subtractBias(pixels: IntArray, bias: Bitmap) {
+        val width = bias.width
+        val height = bias.height
+        val biasPixels = IntArray(width * height)
+        bias.getPixels(biasPixels, 0, width, 0, 0, width, height)
+
+        for (i in pixels.indices) {
+            val p = pixels[i]
+            val bp = biasPixels[i]
+            val r = ((p shr 16) and 0xFF) - ((bp shr 16) and 0xFF)
+            val g = ((p shr 8) and 0xFF) - ((bp shr 8) and 0xFF)
+            val b = (p and 0xFF) - (bp and 0xFF)
+            pixels[i] = (0xFF shl 24) or
+                (r.coerceIn(0, 255) shl 16) or
+                (g.coerceIn(0, 255) shl 8) or
+                b.coerceIn(0, 255)
+        }
+    }
+
     /**
      * Estira el punto negro de la imagen ya apilada para separar más el
      * fondo del cielo de las estrellas: detecta, vía un histograma de
@@ -202,11 +252,10 @@ object AstroStackBuilder {
      * [BACKGROUND_PERCENTILE] de los píxeles (una buena estimación del
      * "fondo del cielo" en una foto nocturna, ya que domina el histograma),
      * lo lleva a negro puro, y reescala el resto del rango (ese nivel..255)
-     * a 0..255. Los píxeles de fondo se oscurecen y se vuelven más
-     * uniformes; las estrellas, que ya estaban por encima de ese nivel,
-     * quedan más brillantes en comparación.
+     * a 0..255. Los tres canales se estiran IGUAL (mismo punto negro), así
+     * que esto no cambia el balance de color, solo el contraste general.
      */
-    private fun applyBackgroundContrastBoost(pixels: IntArray) {
+    private fun applyLuminanceContrastBoost(pixels: IntArray) {
         val pixelCount = pixels.size
         if (pixelCount == 0) return
 
@@ -216,21 +265,10 @@ object AstroStackBuilder {
             val r = (p shr 16) and 0xFF
             val g = (p shr 8) and 0xFF
             val b = p and 0xFF
-            val luminance = (r * 299 + g * 587 + b * 114) / 1000
-            histogram[luminance]++
+            histogram[(r * 299 + g * 587 + b * 114) / 1000]++
         }
 
-        val targetCount = (pixelCount * BACKGROUND_PERCENTILE).toInt()
-        var cumulative = 0
-        var blackPoint = 0
-        for (level in 0..255) {
-            cumulative += histogram[level]
-            if (cumulative >= targetCount) {
-                blackPoint = level
-                break
-            }
-        }
-
+        val blackPoint = percentileLevel(histogram, pixelCount)
         // Si el punto negro calculado es prácticamente 0 (cielo ya muy
         // oscuro y limpio) o cubre casi todo el rango (imagen ya muy
         // brillante/sobreexpuesta), el estiramiento no aportaría nada útil
@@ -248,5 +286,64 @@ object AstroStackBuilder {
             val newB = (((b - blackPoint).coerceAtLeast(0) * 255) / range).coerceIn(0, 255)
             pixels[i] = (0xFF shl 24) or (newR shl 16) or (newG shl 8) or newB
         }
+    }
+
+    /**
+     * Filtro de contaminación lumínica: igual que [applyLuminanceContrastBoost],
+     * pero calculando y aplicando el punto negro de forma INDEPENDIENTE en
+     * cada canal (R, G, B por separado) en vez de un único punto negro
+     * compartido. La contaminación lumínica (sodio, mercurio, LED urbano...)
+     * tiñe el fondo del cielo con un color parejo en toda la imagen
+     * (típicamente naranja/verdoso); al normalizar cada canal a su propio
+     * fondo, ese tinte se neutraliza —el mismo principio que un filtro
+     * físico anti-contaminación lumínica— además de aumentar el contraste.
+     */
+    private fun applyPerChannelContrastBoost(pixels: IntArray) {
+        val pixelCount = pixels.size
+        if (pixelCount == 0) return
+
+        val histR = IntArray(256)
+        val histG = IntArray(256)
+        val histB = IntArray(256)
+        for (i in 0 until pixelCount) {
+            val p = pixels[i]
+            histR[(p shr 16) and 0xFF]++
+            histG[(p shr 8) and 0xFF]++
+            histB[p and 0xFF]++
+        }
+
+        val blackR = percentileLevel(histR, pixelCount)
+        val blackG = percentileLevel(histG, pixelCount)
+        val blackB = percentileLevel(histB, pixelCount)
+
+        // Si algún canal ya está prácticamente saturado (punto negro >= 250),
+        // estirarlo distorsionaría el color en vez de mejorarlo: en ese caso
+        // se deja ese canal sin tocar (rango completo).
+        val rangeR = if (blackR in 1..249) (255 - blackR) else 0
+        val rangeG = if (blackG in 1..249) (255 - blackG) else 0
+        val rangeB = if (blackB in 1..249) (255 - blackB) else 0
+        if (rangeR == 0 && rangeG == 0 && rangeB == 0) return
+
+        for (i in 0 until pixelCount) {
+            val p = pixels[i]
+            val r = (p shr 16) and 0xFF
+            val g = (p shr 8) and 0xFF
+            val b = p and 0xFF
+            val newR = if (rangeR > 0) (((r - blackR).coerceAtLeast(0) * 255) / rangeR).coerceIn(0, 255) else r
+            val newG = if (rangeG > 0) (((g - blackG).coerceAtLeast(0) * 255) / rangeG).coerceIn(0, 255) else g
+            val newB = if (rangeB > 0) (((b - blackB).coerceAtLeast(0) * 255) / rangeB).coerceIn(0, 255) else b
+            pixels[i] = (0xFF shl 24) or (newR shl 16) or (newG shl 8) or newB
+        }
+    }
+
+    /** Nivel (0..255) por debajo del cual cae el [BACKGROUND_PERCENTILE] de los píxeles según [histogram]. */
+    private fun percentileLevel(histogram: IntArray, pixelCount: Int): Int {
+        val targetCount = (pixelCount * BACKGROUND_PERCENTILE).toInt()
+        var cumulative = 0
+        for (level in 0..255) {
+            cumulative += histogram[level]
+            if (cumulative >= targetCount) return level
+        }
+        return 255
     }
 }

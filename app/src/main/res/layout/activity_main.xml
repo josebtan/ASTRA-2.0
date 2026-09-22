@@ -698,6 +698,116 @@
                         android:textColor="@color/astra_gray"
                         android:textSize="11sp" />
 
+                    <!-- Filtro de contaminación lumínica: como el contraste
+                         fondo/estrellas, pero por canal de color, lo que
+                         además neutraliza el tinte (naranja/verdoso) que
+                         deja la iluminación urbana sobre toda la imagen. -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:layout_marginTop="12dp">
+
+                        <TextView
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="@string/astro_light_pollution_label"
+                            android:textColor="@color/astra_white"
+                            android:textStyle="bold"
+                            android:textSize="13sp" />
+
+                        <androidx.appcompat.widget.SwitchCompat
+                            android:id="@+id/switchAstroLightPollution"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content" />
+                    </LinearLayout>
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="6dp"
+                        android:text="@string/astro_light_pollution_note"
+                        android:textColor="@color/astra_gray"
+                        android:textSize="11sp" />
+
+                    <View
+                        android:layout_width="match_parent"
+                        android:layout_height="1dp"
+                        android:layout_marginVertical="14dp"
+                        android:background="@color/astra_divider" />
+
+                    <!-- ===== Calibración de Bias ===== -->
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="@string/bias_label"
+                        android:textColor="@color/astra_white"
+                        android:textStyle="bold"
+                        android:textSize="13sp" />
+
+                    <TextView
+                        android:id="@+id/tvBiasStatus"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="4dp"
+                        android:text="@string/bias_status_none"
+                        android:textColor="@color/astra_accent"
+                        android:textSize="12sp" />
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="6dp"
+                        android:text="@string/bias_note"
+                        android:textColor="@color/astra_gray"
+                        android:textSize="11sp" />
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:layout_marginTop="12dp">
+
+                        <TextView
+                            android:id="@+id/btnCalibrateBias"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="@string/bias_calibrate_button"
+                            android:textColor="@color/astra_accent"
+                            android:textStyle="bold"
+                            android:textSize="13sp"
+                            android:padding="8dp"
+                            android:background="@drawable/bg_value_badge"
+                            android:gravity="center"
+                            android:clickable="true"
+                            android:focusable="true" />
+
+                        <androidx.appcompat.widget.SwitchCompat
+                            android:id="@+id/switchAstroBiasCorrection"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginStart="12dp"
+                            android:enabled="false" />
+                    </LinearLayout>
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="6dp"
+                        android:text="@string/bias_correction_note"
+                        android:textColor="@color/astra_gray"
+                        android:textSize="11sp" />
+
+                    <View
+                        android:layout_width="match_parent"
+                        android:layout_height="1dp"
+                        android:layout_marginVertical="14dp"
+                        android:background="@color/astra_divider" />
+
                     <TextView
                         android:id="@+id/tvAstroStackStatus"
                         android:layout_width="match_parent"

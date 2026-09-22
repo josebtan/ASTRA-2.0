@@ -20,6 +20,7 @@ import android.view.WindowManager
 import android.widget.SeekBar
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.camera.camera2.interop.Camera2CameraControl
 import androidx.camera.camera2.interop.Camera2CameraInfo
@@ -99,9 +100,24 @@ class MainActivity : AppCompatActivity() {
     // Estira el punto negro de la imagen apilada final para separar más el
     // fondo del cielo de las estrellas (más contraste entre ambos).
     private var astroBoostContrast = true
+    // Filtro de contaminación lumínica: como astroBoostContrast, pero por
+    // canal de color independiente (ver AstroStackBuilder), lo que además
+    // neutraliza el tinte parejo (sodio/LED) que deja la contaminación
+    // lumínica sobre toda la imagen.
+    private var astroFilterLightPollution = false
+    // Resta el bias maestro calibrado (ver BiasCalibrator) antes de
+    // cualquier otro ajuste. Solo se activa por defecto si ya existe un
+    // bias maestro calibrado para esta resolución.
+    private var astroApplyBiasCorrection = false
     // Carpeta temporal (caché de la app) donde se guardan los fotogramas de
     // la sesión de stacking en curso, antes de promediarlos en una imagen final.
     private var astroStackFramesDir: File? = null
+
+    // --- Calibración de Bias (ver BiasCalibrator) ---
+    private var isBiasCalibrating = false
+    private var biasCaptureInFlight = false
+    private var biasShotsTaken = 0
+    private var biasFramesDir: File? = null
 
     // --- Timelapse ---
     private var timelapseIntervalSeconds = 5
@@ -187,6 +203,11 @@ class MainActivity : AppCompatActivity() {
         orientationEventListener.disable()
         if (isTimelapseRunning) stopTimelapse()
         if (isAstroStackingRunning) stopAstroStacking()
+        if (isBiasCalibrating) {
+            isBiasCalibrating = false
+            biasFramesDir?.deleteRecursively()
+            biasFramesDir = null
+        }
     }
 
     /**
@@ -948,6 +969,16 @@ class MainActivity : AppCompatActivity() {
             astroBoostContrast = isChecked
         }
 
+        binding.switchAstroLightPollution.setOnCheckedChangeListener { _, isChecked ->
+            astroFilterLightPollution = isChecked
+        }
+
+        binding.switchAstroBiasCorrection.setOnCheckedChangeListener { _, isChecked ->
+            astroApplyBiasCorrection = isChecked
+        }
+
+        binding.btnCalibrateBias.setOnClickListener { confirmStartBiasCalibration() }
+
         binding.seekAstroStackShots.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(seekBar: SeekBar, progress: Int, fromUser: Boolean) {
                 astroStackTargetShots = progress + 2 // 2..50 fotos
@@ -959,6 +990,7 @@ class MainActivity : AppCompatActivity() {
         })
         binding.tvAstroStackShots.text = astroStackTargetShots.toString()
         updateAstroStackStatus()
+        updateBiasStatus()
     }
 
     private fun formatExposureSeconds(exposureNs: Long): String {
@@ -1135,10 +1167,13 @@ class MainActivity : AppCompatActivity() {
         val outputImage = File(outputDirectory, "ASTRA_STACK_$fileName.jpg")
 
         AstroStackBuilder.buildStackAsync(
-            frameFiles,
-            outputImage,
+            context = this,
+            frameFiles = frameFiles,
+            outputFile = outputImage,
             alignStars = astroAlignStars,
+            applyBiasCorrection = astroApplyBiasCorrection,
             boostContrast = astroBoostContrast,
+            filterLightPollution = astroFilterLightPollution,
             onAligning = {
                 if (!isFinishing && !isDestroyed) {
                     binding.tvAstroStackStatus.text = getString(R.string.astro_stacking_aligning)
@@ -1165,6 +1200,167 @@ class MainActivity : AppCompatActivity() {
             getString(R.string.astro_stacking_status_running_hint)
         } else {
             getString(R.string.astro_stacking_status_idle)
+        }
+    }
+
+    // ============================================================
+    // Calibración de Bias: una serie de fotos con el objetivo tapado, a la
+    // exposición y el ISO más bajos posibles, que capturan solo el ruido de
+    // patrón fijo del sensor. Se promedian en un "bias maestro" (ver
+    // BiasCalibrator) que luego se resta de las fotos apiladas. Todo el
+    // proceso es guiado paso a paso y automático una vez confirmado: el
+    // usuario solo tiene que tapar el objetivo y esperar.
+    // ============================================================
+
+    private fun confirmStartBiasCalibration() {
+        if (imageCapture == null || !manualSensorSupported || exposureTimeRange == null) {
+            Toast.makeText(this, getString(R.string.bias_not_supported), Toast.LENGTH_LONG).show()
+            return
+        }
+        AlertDialog.Builder(this)
+            .setTitle(R.string.bias_dialog_title)
+            .setMessage(getString(R.string.bias_dialog_message, BIAS_FRAME_COUNT))
+            .setPositiveButton(R.string.bias_dialog_start) { _, _ -> startBiasCalibration() }
+            .setNegativeButton(R.string.bias_dialog_cancel, null)
+            .show()
+    }
+
+    private fun startBiasCalibration() {
+        val capture = imageCapture ?: return
+        biasFramesDir = File(cacheDir, "astra_bias_${System.currentTimeMillis()}").apply { mkdirs() }
+        isBiasCalibrating = true
+        biasCaptureInFlight = false
+        biasShotsTaken = 0
+        applyBiasCaptureOptions()
+        updateBiasStatus()
+        captureNextBiasFrame(capture)
+    }
+
+    /**
+     * Fija, a nivel de sesión (afecta también a la vista previa, pero da
+     * igual: el objetivo está tapado), la exposición más corta que soporte
+     * el sensor y el ISO que se esté usando en Astro — un bias se toma
+     * idealmente al mismo ISO que las fotos que va a corregir.
+     */
+    @OptIn(ExperimentalCamera2Interop::class)
+    private fun applyBiasCaptureOptions() {
+        val cam = camera ?: return
+        val minExposureNs = exposureTimeRange?.lower ?: DEFAULT_EXPOSURE_TIME_NS
+        val iso = astroIso ?: isoRange?.lower ?: 100
+        val options = CaptureRequestOptions.Builder()
+            .setCaptureRequestOption(CaptureRequest.CONTROL_AE_MODE, CaptureRequest.CONTROL_AE_MODE_OFF)
+            .setCaptureRequestOption(CaptureRequest.SENSOR_SENSITIVITY, iso)
+            .setCaptureRequestOption(CaptureRequest.SENSOR_EXPOSURE_TIME, minExposureNs)
+            .build()
+        Camera2CameraControl.from(cam.cameraControl).setCaptureRequestOptions(options)
+    }
+
+    private fun captureNextBiasFrame(capture: ImageCapture) {
+        if (!isBiasCalibrating) return
+        val dir = biasFramesDir ?: return
+
+        biasCaptureInFlight = true
+        val frameFile = File(dir, "bias_${String.format(Locale.US, "%03d", biasShotsTaken)}.jpg")
+        val outputOptions = ImageCapture.OutputFileOptions.Builder(frameFile).build()
+
+        capture.takePicture(
+            outputOptions,
+            ContextCompat.getMainExecutor(this),
+            object : ImageCapture.OnImageSavedCallback {
+                override fun onError(exc: ImageCaptureException) {
+                    Log.e(TAG, "Error al capturar fotograma de bias", exc)
+                    onBiasFrameFinished()
+                }
+
+                override fun onImageSaved(output: ImageCapture.OutputFileResults) {
+                    onBiasFrameFinished()
+                }
+            }
+        )
+    }
+
+    private fun onBiasFrameFinished() {
+        biasCaptureInFlight = false
+        biasShotsTaken++
+        updateBiasStatus()
+
+        val capture = imageCapture
+        if (isBiasCalibrating && biasShotsTaken < BIAS_FRAME_COUNT && capture != null) {
+            captureNextBiasFrame(capture)
+        } else {
+            finishBiasCalibration()
+        }
+    }
+
+    private fun finishBiasCalibration() {
+        isBiasCalibrating = false
+        // Restaura la exposición automática/normal de la sesión (según el
+        // modo activo), ya que applyBiasCaptureOptions() la había fijado
+        // manualmente a la exposición más corta posible.
+        applyManualCaptureOptions()
+
+        val dir = biasFramesDir
+        biasFramesDir = null
+        val frameFiles = dir?.listFiles { f -> f.extension.equals("jpg", ignoreCase = true) }
+            ?.sortedBy { it.name }
+            ?: emptyList()
+
+        if (frameFiles.isEmpty()) {
+            dir?.deleteRecursively()
+            updateBiasStatus()
+            return
+        }
+
+        binding.tvBiasStatus.text = getString(R.string.bias_processing)
+        BiasCalibrator.buildMasterBiasAsync(this, frameFiles) { success ->
+            dir.deleteRecursively()
+            if (isFinishing || isDestroyed) return@buildMasterBiasAsync
+
+            if (success) {
+                astroApplyBiasCorrection = true
+                binding.switchAstroBiasCorrection.isChecked = true
+                Toast.makeText(this, getString(R.string.bias_done), Toast.LENGTH_LONG).show()
+            } else {
+                Toast.makeText(this, getString(R.string.bias_error), Toast.LENGTH_LONG).show()
+            }
+            updateBiasStatus()
+        }
+    }
+
+    private fun updateBiasStatus() {
+        val hasBias = BiasCalibrator.hasMasterBias(this)
+        binding.switchAstroBiasCorrection.isEnabled = hasBias && !isBiasCalibrating
+        if (!hasBias) {
+            binding.switchAstroBiasCorrection.isChecked = false
+            astroApplyBiasCorrection = false
+        }
+        binding.btnCalibrateBias.isEnabled = !isBiasCalibrating
+
+        binding.tvBiasStatus.text = when {
+            isBiasCalibrating -> getString(R.string.bias_status_running, biasShotsTaken, BIAS_FRAME_COUNT)
+            hasBias -> {
+                val timestamp = BiasCalibrator.masterBiasTimestamp(this)
+                if (timestamp != null) {
+                    getString(R.string.bias_status_calibrated, formatRelativeTime(timestamp))
+                } else {
+                    getString(R.string.bias_status_calibrated_unknown_date)
+                }
+            }
+            else -> getString(R.string.bias_status_none)
+        }
+    }
+
+    /** Formatea hace cuánto tiempo ocurrió [timestampMs] en texto legible ("hace 2 días", etc.). */
+    private fun formatRelativeTime(timestampMs: Long): String {
+        val elapsedMs = (System.currentTimeMillis() - timestampMs).coerceAtLeast(0)
+        val minutes = elapsedMs / 60_000
+        val hours = minutes / 60
+        val days = hours / 24
+        return when {
+            days > 0 -> getString(R.string.relative_time_days, days)
+            hours > 0 -> getString(R.string.relative_time_hours, hours)
+            minutes > 0 -> getString(R.string.relative_time_minutes, minutes)
+            else -> getString(R.string.relative_time_now)
         }
     }
 
@@ -1442,6 +1638,9 @@ class MainActivity : AppCompatActivity() {
 
     companion object {
         private const val TAG = "AstraCamera"
+
+        // Número de fotogramas usados para calcular el bias maestro.
+        private const val BIAS_FRAME_COUNT = 15
 
         // Salvapantallas: cuánto tarda en activarse tras iniciar la
         // secuencia (deja ver que arrancó bien antes de ponerse en negro),
